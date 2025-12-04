@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#c41e3a" />
+    <title>Puzzle de Noël 🎄</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(
+            ellipse at top,
+            #1a4d2e 0%,
+            #0d2818 50%,
+            #000000 100%
+          ),
+          url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><radialGradient id="glow1"><stop offset="0%%" stop-color="%23ffffff" stop-opacity="0.8"/><stop offset="100%%" stop-color="%23ffffff" stop-opacity="0"/></radialGradient><radialGradient id="glow2"><stop offset="0%%" stop-color="%23ffd700" stop-opacity="0.6"/><stop offset="100%%" stop-color="%23ffd700" stop-opacity="0"/></radialGradient></defs><rect fill="none" width="1200" height="800"/><g opacity="0.9"><circle cx="150" cy="100" r="2" fill="url(%23glow1)"/><circle cx="300" cy="150" r="2.5" fill="url(%23glow1)"/><circle cx="450" cy="80" r="2" fill="url(%23glow1)"/><circle cx="600" cy="120" r="3" fill="url(%23glow2)"/><circle cx="750" cy="90" r="2" fill="url(%23glow1)"/><circle cx="900" cy="140" r="2.5" fill="url(%23glow1)"/><circle cx="1050" cy="110" r="2" fill="url(%23glow1)"/><circle cx="100" cy="300" r="2.5" fill="url(%23glow1)"/><circle cx="250" cy="350" r="2" fill="url(%23glow2)"/><circle cx="400" cy="320" r="2" fill="url(%23glow1)"/><circle cx="550" cy="380" r="2.5" fill="url(%23glow1)"/><circle cx="700" cy="340" r="2" fill="url(%23glow1)"/><circle cx="850" cy="370" r="3" fill="url(%23glow2)"/><circle cx="1000" cy="330" r="2" fill="url(%23glow1)"/><circle cx="1100" cy="360" r="2.5" fill="url(%23glow1)"/><circle cx="180" cy="550" r="2" fill="url(%23glow1)"/><circle cx="320" cy="520" r="2.5" fill="url(%23glow1)"/><circle cx="480" cy="580" r="2" fill="url(%23glow2)"/><circle cx="640" cy="540" r="2" fill="url(%23glow1)"/><circle cx="780" cy="590" r="2.5" fill="url(%23glow1)"/><circle cx="920" cy="560" r="2" fill="url(%23glow1)"/><circle cx="1080" cy="570" r="3" fill="url(%23glow2)"/></g><g opacity="0.15"><path d="M 100 700 Q 150 650 200 700 T 300 700" stroke="%23ffffff" stroke-width="2" fill="none"/><path d="M 400 720 Q 450 670 500 720 T 600 720" stroke="%23ffffff" stroke-width="2" fill="none"/><path d="M 700 710 Q 750 660 800 710 T 900 710" stroke="%23ffffff" stroke-width="2" fill="none"/><path d="M 1000 700 Q 1050 650 1100 700" stroke="%23ffffff" stroke-width="2" fill="none"/></g><g opacity="0.2"><text x="100" y="750" font-family="Arial" font-size="40" fill="%23ff6b6b">🎄</text><text x="300" y="770" font-family="Arial" font-size="35" fill="%23ffd700">⭐</text><text x="500" y="760" font-family="Arial" font-size="38" fill="%2366ff66">🎁</text><text x="700" y="775" font-family="Arial" font-size="36" fill="%23ffffff">❄️</text><text x="900" y="765" font-family="Arial" font-size="40" fill="%23ff6b6b">🎄</text><text x="1100" y="770" font-family="Arial" font-size="35" fill="%23ffd700">⭐</text></g></svg>')
+            center/cover;
+        background-blend-mode: normal;
+        padding: 15px;
+        position: relative;
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(
+            circle at 20% 30%,
+            rgba(255, 107, 107, 0.1) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 80% 60%,
+            rgba(255, 215, 0, 0.1) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 50% 80%,
+            rgba(102, 255, 102, 0.08) 0%,
+            transparent 50%
+          );
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .container {
+        position: relative;
+        z-index: 10;
+        background: rgba(255, 255, 255, 0.98);
+        padding: 25px;
+        border-radius: 20px;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+        text-align: center;
+        max-width: 900px;
+        width: 100%;
+      }
+
+      h1 {
+        color: #c41e3a;
+        margin-bottom: 20px;
+        font-size: clamp(1.8em, 5vw, 2.8em);
+        text-shadow: 2px 2px 4px rgba(196, 30, 58, 0.2);
+      }
+
+      .step {
+        margin: 20px 0;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 15px;
+        border-left: 5px solid #c41e3a;
+      }
+
+      .step h3 {
+        color: #c41e3a;
+        margin-bottom: 12px;
+        font-size: clamp(1em, 4vw, 1.3em);
+      }
+
+      input[type="file"] {
+        display: none;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #c41e3a 0%, #8b1428 100%);
+        color: white;
+        padding: 12px 25px;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: clamp(14px, 3vw, 17px);
+        font-weight: bold;
+        margin: 8px;
+        box-shadow: 0 5px 20px rgba(196, 30, 58, 0.4);
+        transition: all 0.3s;
+        display: inline-block;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .btn:active {
+        transform: translateY(2px);
+        box-shadow: 0 3px 10px rgba(196, 30, 58, 0.4);
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .message-input {
+        width: 100%;
+        max-width: 500px;
+        padding: 12px 20px;
+        margin: 10px auto;
+        border: 2px solid #c41e3a;
+        border-radius: 10px;
+        font-size: 16px;
+        display: block;
+        box-sizing: border-box;
+      }
+
+      .puzzle-area {
+        margin: 25px 0;
+        display: none;
+      }
+
+      .info-bar {
+        display: flex;
+        justify-content: space-around;
+        margin: 15px 0;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .info-item {
+        background: linear-gradient(135deg, #c41e3a 0%, #8b1428 100%);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 15px;
+        font-size: clamp(0.9em, 3vw, 1.1em);
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(196, 30, 58, 0.3);
+        flex: 1;
+        min-width: 120px;
+      }
+
+      .puzzle-container {
+        display: inline-block;
+        margin: 15px auto;
+        border: 4px solid #c41e3a;
+        border-radius: 15px;
+        background: white;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        padding: 4px;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .puzzle-grid {
+        display: grid;
+        gap: 2px;
+        background: #2c3e50;
+        touch-action: none;
+      }
+
+      .puzzle-piece {
+        cursor: pointer;
+        transition: transform 0.15s ease;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+        border-radius: 4px;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+
+      .puzzle-piece:not(.empty):active {
+        transform: scale(0.97);
+      }
+
+      .puzzle-piece.empty {
+        background: linear-gradient(
+          135deg,
+          #34495e 0%,
+          #2c3e50 100%
+        ) !important;
+        cursor: default;
+        box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .puzzle-piece.can-move {
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+        50% {
+          box-shadow: 0 0 20px rgba(255, 215, 0, 0.9);
+        }
+      }
+
+      .share-section {
+        display: none;
+        margin: 20px 0;
+        padding: 20px;
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-radius: 15px;
+        border: 3px solid #4caf50;
+      }
+
+      .share-url {
+        width: 100%;
+        padding: 12px;
+        margin: 15px 0;
+        border: 2px solid #4caf50;
+        border-radius: 10px;
+        font-size: 14px;
+        background: white;
+        box-sizing: border-box;
+        word-break: break-all;
+      }
+
+      .victory-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          135deg,
+          rgba(196, 30, 58, 0.95),
+          rgba(139, 20, 40, 0.95)
+        );
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        animation: fadeIn 0.5s;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .victory-content {
+        text-align: center;
+        animation: zoomIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        max-width: 90%;
+        width: 100%;
+      }
+
+      @keyframes zoomIn {
+        from {
+          transform: scale(0.3);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .victory-title {
+        font-size: clamp(2em, 8vw, 4em);
+        color: #ffd700;
+        text-shadow: 0 0 30px #ffd700, 0 0 60px #ffd700;
+        margin: 20px 0;
+        animation: glow 2s ease-in-out infinite;
+      }
+
+      @keyframes glow {
+        0%,
+        100% {
+          text-shadow: 0 0 20px #ffd700, 0 0 40px #ffd700;
+        }
+        50% {
+          text-shadow: 0 0 40px #ffd700, 0 0 80px #ffd700, 0 0 120px #ffd700;
+        }
+      }
+
+      .victory-image {
+        max-width: 80vw;
+        max-height: 40vh;
+        border-radius: 20px;
+        box-shadow: 0 0 80px rgba(255, 215, 0, 0.9);
+        margin: 20px 0;
+        border: 5px solid #ffd700;
+      }
+
+      .victory-message {
+        font-size: clamp(1.2em, 5vw, 2.5em);
+        color: white;
+        margin: 20px 0;
+        text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+        font-weight: bold;
+      }
+
+      .victory-stats {
+        font-size: clamp(1em, 4vw, 1.5em);
+        color: #ffd700;
+        margin: 15px 0;
+      }
+
+      .firework {
+        position: fixed;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        animation: explode 1s ease-out forwards;
+        pointer-events: none;
+      }
+
+      @keyframes explode {
+        0% {
+          transform: translate(0, 0);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(var(--x), var(--y));
+          opacity: 0;
+        }
+      }
+
+      .preview-image {
+        max-width: 200px;
+        max-height: 200px;
+        border-radius: 10px;
+        margin: 15px 0;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      }
+
+      select {
+        padding: 10px 20px;
+        margin: 10px;
+        border: 2px solid #c41e3a;
+        border-radius: 10px;
+        font-size: 16px;
+        cursor: pointer;
+        background: white;
+        touch-action: manipulation;
+      }
+
+      .loading {
+        display: none;
+        margin: 20px 0;
+        color: #c41e3a;
+        font-weight: bold;
+      }
+
+      @media (max-width: 480px) {
+        .container {
+          padding: 15px;
+        }
+
+        .step {
+          padding: 12px;
+        }
+
+        .btn {
+          padding: 10px 20px;
+          margin: 5px;
+          font-size: 14px;
+        }
+
+        .info-item {
+          padding: 10px 15px;
+          font-size: 0.9em;
+        }
+
+        .puzzle-container {
+          padding: 3px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎄 Puzzle de Noël 🎁</h1>
+
+      <div class="step" id="step1">
+        <h3>📸 Étape 1 : Choisissez votre photo</h3>
+        <input type="file" id="imageInput" accept="image/*" />
+        <label for="imageInput" class="btn">Choisir une photo</label>
+        <div id="imagePreview"></div>
+        <div class="loading" id="loading">Chargement de l'image...</div>
+
+        <div style="margin-top: 20px">
+          <label for="gridSize">Difficulté :</label>
+          <select id="gridSize">
+            <option value="3">Facile (3×3)</option>
+            <option value="4" selected>Moyen (4×4)</option>
+            <option value="5">Difficile (5×5)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="step" id="step2" style="display: none">
+        <h3>✍️ Étape 2 : Personnalisez votre message</h3>
+        <input
+          type="text"
+          id="messageInput"
+          class="message-input"
+          placeholder="Ex: Joyeux Noël 2024 ! 🎄"
+          value="🎄 Félicitations ! Puzzle résolu ! 🎁"
+        />
+        <button class="btn" id="createPuzzleBtn">Créer le puzzle</button>
+      </div>
+
+      <div class="puzzle-area" id="puzzleArea">
+        <div class="info-bar">
+          <div class="info-item">⏱️ Temps: <span id="timer">0:00</span></div>
+          <div class="info-item">🔢 Coups: <span id="moves">0</span></div>
+        </div>
+
+        <div class="puzzle-container">
+          <div class="puzzle-grid" id="puzzleGrid"></div>
+        </div>
+
+        <div style="margin-top: 20px">
+          <button class="btn" id="shuffleBtn">🔀 Nouveau mélange</button>
+          <button class="btn" id="resetBtn">↺ Recommencer</button>
+        </div>
+      </div>
+
+      <div class="share-section" id="shareSection">
+        <h3>✅ Puzzle créé avec succès !</h3>
+        <p>Partagez ce lien pour que d'autres puissent jouer :</p>
+        <input type="text" id="shareUrl" class="share-url" readonly />
+        <button class="btn" onclick="copyUrl()">📋 Copier le lien</button>
+        <button class="btn" onclick="shareNative()">📤 Partager</button>
+        <button class="btn" onclick="startPlaying()">
+          🎮 Jouer maintenant
+        </button>
+      </div>
+    </div>
+
+    <div class="victory-overlay" id="victoryOverlay">
+      <div class="victory-content">
+        <div class="victory-title">✨ 🎉 BRAVO ! 🎉 ✨</div>
+        <img id="victoryImage" class="victory-image" />
+        <div class="victory-message" id="victoryMessage"></div>
+        <div class="victory-stats" id="victoryStats"></div>
+        <button
+          class="btn"
+          onclick="location.reload()"
+          style="font-size: 1.2em; margin-top: 20px"
+        >
+          🔄 Nouveau puzzle
+        </button>
+      </div>
+    </div>
+
+    <script>
+      let gridSize = 4;
+      let tiles = [];
+      let emptyIndex;
+      let imageData = null;
+      let moves = 0;
+      let timer = 0;
+      let timerInterval = null;
+      let customMessage = "";
+      let startTime = null;
+      let touchStartX = null;
+      let touchStartY = null;
+
+      const imageInput = document.getElementById("imageInput");
+      const puzzleGrid = document.getElementById("puzzleGrid");
+      const step1 = document.getElementById("step1");
+      const step2 = document.getElementById("step2");
+      const puzzleArea = document.getElementById("puzzleArea");
+      const shareSection = document.getElementById("shareSection");
+      const loading = document.getElementById("loading");
+
+      // Compresser l'image pour réduire la taille de l'URL
+      function compressImage(file, maxWidth = 800, quality = 0.8) {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              let width = img.width;
+              let height = img.height;
+
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, width, height);
+
+              const compressed = canvas.toDataURL("image/jpeg", quality);
+              resolve(compressed);
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // Charger depuis URL
+      window.addEventListener("load", () => {
+        const params = new URLSearchParams(window.location.search);
+        const imgData = params.get("img");
+        const msg = params.get("msg");
+        const size = params.get("size");
+
+        if (imgData && msg) {
+          imageData = decodeURIComponent(imgData);
+          customMessage = decodeURIComponent(msg);
+          gridSize = size ? parseInt(size) : 4;
+
+          step1.style.display = "none";
+          step2.style.display = "none";
+          puzzleArea.style.display = "block";
+
+          initPuzzle();
+          startTimer();
+        }
+      });
+
+      imageInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          loading.style.display = "block";
+          try {
+            imageData = await compressImage(file);
+
+            const preview = document.getElementById("imagePreview");
+            preview.innerHTML = `<img src="${imageData}" class="preview-image">`;
+
+            step2.style.display = "block";
+          } catch (error) {
+            alert("Erreur lors du chargement de l'image");
+          } finally {
+            loading.style.display = "none";
+          }
+        }
+      });
+
+      document
+        .getElementById("createPuzzleBtn")
+        .addEventListener("click", () => {
+          customMessage =
+            document.getElementById("messageInput").value ||
+            "🎄 Félicitations ! 🎁";
+          gridSize = parseInt(document.getElementById("gridSize").value);
+
+          // Utiliser URL.createObjectURL pour les grandes images ou compresser davantage
+          const url = `${window.location.origin}${
+            window.location.pathname
+          }?img=${encodeURIComponent(imageData)}&msg=${encodeURIComponent(
+            customMessage
+          )}&size=${gridSize}`;
+
+          document.getElementById("shareUrl").value = url;
+          shareSection.style.display = "block";
+          step1.style.display = "none";
+          step2.style.display = "none";
+        });
+
+      function startPlaying() {
+        shareSection.style.display = "none";
+        puzzleArea.style.display = "block";
+        initPuzzle();
+        startTimer();
+      }
+
+      function initPuzzle() {
+        moves = 0;
+        document.getElementById("moves").textContent = "0";
+        puzzleGrid.innerHTML = "";
+        tiles = [];
+
+        const img = new Image();
+        img.onload = () => {
+          const containerWidth = Math.min(window.innerWidth - 60, 600);
+          const tileSize = Math.floor(containerWidth / gridSize);
+          const totalSize = tileSize * gridSize;
+
+          puzzleGrid.style.gridTemplateColumns = `repeat(${gridSize}, ${tileSize}px)`;
+          puzzleGrid.style.gridTemplateRows = `repeat(${gridSize}, ${tileSize}px)`;
+
+          for (let i = 0; i < gridSize * gridSize; i++) {
+            const tile = document.createElement("div");
+            tile.className = "puzzle-piece";
+            tile.dataset.currentIndex = i;
+            tile.dataset.correctIndex = i;
+
+            const row = Math.floor(i / gridSize);
+            const col = i % gridSize;
+            tile.style.backgroundImage = `url(${imageData})`;
+            tile.style.backgroundSize = `${totalSize}px ${totalSize}px`;
+            tile.style.backgroundPosition = `-${col * tileSize}px -${
+              row * tileSize
+            }px`;
+
+            // Gestion tactile améliorée
+            tile.addEventListener("touchstart", handleTouchStart, {
+              passive: false,
+            });
+            tile.addEventListener("touchend", handleTouchEnd, {
+              passive: false,
+            });
+            tile.addEventListener("click", () =>
+              handleTileClick(parseInt(tile.dataset.currentIndex))
+            );
+
+            puzzleGrid.appendChild(tile);
+            tiles.push(tile);
+          }
+
+          // Choisir une case aléatoire comme case vide
+          emptyIndex = Math.floor(Math.random() * (gridSize * gridSize));
+          tiles[emptyIndex].classList.add("empty");
+          tiles[emptyIndex].style.backgroundImage = "";
+
+          updateMovableTiles();
+          shuffle();
+        };
+        img.src = imageData;
+      }
+
+      function handleTouchStart(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+      }
+
+      function handleTouchEnd(e) {
+        e.preventDefault();
+        if (!touchStartX || !touchStartY) return;
+
+        const touch = e.changedTouches[0];
+        const deltaX = touch.clientX - touchStartX;
+        const deltaY = touch.clientY - touchStartY;
+        const threshold = 10;
+
+        const target = e.target;
+        const index = parseInt(target.dataset.currentIndex);
+
+        if (Math.abs(deltaX) < threshold && Math.abs(deltaY) < threshold) {
+          // Tap simple
+          handleTileClick(index);
+        } else {
+          // Swipe détecté
+          if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Swipe horizontal
+            if (deltaX > threshold && canMove(index)) {
+              handleTileClick(index);
+            }
+          } else {
+            // Swipe vertical
+            if (Math.abs(deltaY) > threshold && canMove(index)) {
+              handleTileClick(index);
+            }
+          }
+        }
+
+        touchStartX = null;
+        touchStartY = null;
+      }
+
+      function handleTileClick(index) {
+        if (canMove(index)) {
+          moveTile(index);
+        }
+      }
+
+      function canMove(index) {
+        const row = Math.floor(index / gridSize);
+        const col = index % gridSize;
+        const emptyRow = Math.floor(emptyIndex / gridSize);
+        const emptyCol = emptyIndex % gridSize;
+
+        return (
+          (Math.abs(row - emptyRow) === 1 && col === emptyCol) ||
+          (Math.abs(col - emptyCol) === 1 && row === emptyRow)
+        );
+      }
+
+      function updateMovableTiles() {
+        tiles.forEach((tile, index) => {
+          if (canMove(index) && !tile.classList.contains("empty")) {
+            tile.classList.add("can-move");
+          } else {
+            tile.classList.remove("can-move");
+          }
+        });
+      }
+
+      function moveTile(index) {
+        // Échanger visuellement
+        const tempBg = tiles[index].style.backgroundImage;
+        const tempPos = tiles[index].style.backgroundPosition;
+        const tempClass = tiles[index].className;
+        const tempCorrect = tiles[index].dataset.correctIndex;
+
+        tiles[index].style.backgroundImage =
+          tiles[emptyIndex].style.backgroundImage;
+        tiles[index].style.backgroundPosition =
+          tiles[emptyIndex].style.backgroundPosition;
+        tiles[index].className = tiles[emptyIndex].className;
+        tiles[index].dataset.correctIndex =
+          tiles[emptyIndex].dataset.correctIndex;
+
+        tiles[emptyIndex].style.backgroundImage = tempBg;
+        tiles[emptyIndex].style.backgroundPosition = tempPos;
+        tiles[emptyIndex].className = tempClass;
+        tiles[emptyIndex].dataset.correctIndex = tempCorrect;
+
+        emptyIndex = index;
+        moves++;
+        document.getElementById("moves").textContent = moves;
+
+        updateMovableTiles();
+
+        if (checkWin()) {
+          setTimeout(showVictory, 400);
+        }
+      }
+
+      function shuffle() {
+        let shuffleMoves = gridSize * gridSize * 50;
+        for (let i = 0; i < shuffleMoves; i++) {
+          const possibleMoves = [];
+          for (let j = 0; j < tiles.length; j++) {
+            if (canMove(j)) possibleMoves.push(j);
+          }
+          const randomMove =
+            possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+
+          // Swap sans incrémenter moves
+          const tempBg = tiles[randomMove].style.backgroundImage;
+          const tempPos = tiles[randomMove].style.backgroundPosition;
+          const tempClass = tiles[randomMove].className;
+          const tempCorrect = tiles[randomMove].dataset.correctIndex;
+
+          tiles[randomMove].style.backgroundImage =
+            tiles[emptyIndex].style.backgroundImage;
+          tiles[randomMove].style.backgroundPosition =
+            tiles[emptyIndex].style.backgroundPosition;
+          tiles[randomMove].className = tiles[emptyIndex].className;
+          tiles[randomMove].dataset.correctIndex =
+            tiles[emptyIndex].dataset.correctIndex;
+
+          tiles[emptyIndex].style.backgroundImage = tempBg;
+          tiles[emptyIndex].style.backgroundPosition = tempPos;
+          tiles[emptyIndex].className = tempClass;
+          tiles[emptyIndex].dataset.correctIndex = tempCorrect;
+
+          emptyIndex = randomMove;
+        }
+
+        moves = 0;
+        document.getElementById("moves").textContent = "0";
+        updateMovableTiles();
+      }
+
+      function checkWin() {
+        for (let i = 0; i < tiles.length; i++) {
+          if (parseInt(tiles[i].dataset.correctIndex) !== i) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function showVictory() {
+        stopTimer();
+
+        document.getElementById("victoryImage").src = imageData;
+        document.getElementById("victoryMessage").textContent = customMessage;
+        document.getElementById(
+          "victoryStats"
+        ).innerHTML = `Temps: ${formatTime(timer)} | Coups: ${moves}`;
+
+        document.getElementById("victoryOverlay").style.display = "flex";
+
+        // Feux d'artifice
+        for (let i = 0; i < 50; i++) {
+          setTimeout(() => createFirework(), i * 100);
+        }
+      }
+
+      function createFirework() {
+        const x = Math.random() * window.innerWidth;
+        const y = Math.random() * window.innerHeight * 0.5;
+        const colors = [
+          "#ffd700",
+          "#ff6b6b",
+          "#4ecdc4",
+          "#45b7d1",
+          "#f8b500",
+          "#ff1744",
+        ];
+
+        for (let i = 0; i < 30; i++) {
+          const particle = document.createElement("div");
+          particle.className = "firework";
+          particle.style.left = x + "px";
+          particle.style.top = y + "px";
+          particle.style.background =
+            colors[Math.floor(Math.random() * colors.length)];
+
+          const angle = (Math.PI * 2 * i) / 30;
+          const velocity = 50 + Math.random() * 100;
+          particle.style.setProperty("--x", Math.cos(angle) * velocity + "px");
+          particle.style.setProperty("--y", Math.sin(angle) * velocity + "px");
+
+          document.body.appendChild(particle);
+          setTimeout(() => particle.remove(), 1000);
+        }
+      }
+
+      function startTimer() {
+        timer = 0;
+        startTime = Date.now();
+        timerInterval = setInterval(() => {
+          timer = Math.floor((Date.now() - startTime) / 1000);
+          document.getElementById("timer").textContent = formatTime(timer);
+        }, 1000);
+      }
+
+      function stopTimer() {
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+      }
+
+      function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, "0")}`;
+      }
+
+      document.getElementById("shuffleBtn").addEventListener("click", () => {
+        shuffle();
+        stopTimer();
+        startTimer();
+      });
+
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        initPuzzle();
+        stopTimer();
+        startTimer();
+      });
+
+      function copyUrl() {
+        const urlInput = document.getElementById("shareUrl");
+        urlInput.select();
+        urlInput.setSelectionRange(0, 99999);
+
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(urlInput.value).then(() => {
+            alert("✅ Lien copié dans le presse-papier !");
+          });
+        } else {
+          // Fallback
+          document.execCommand("copy");
+          alert("✅ Lien copié dans le presse-papier !");
+        }
+      }
+
+      function shareNative() {
+        const url = document.getElementById("shareUrl").value;
+        if (navigator.share) {
+          navigator
+            .share({
+              title: "Puzzle de Noël 🎄",
+              text: customMessage || "Venez jouer à ce puzzle de Noël !",
+              url: url,
+            })
+            .catch(() => {
+              copyUrl();
+            });
+        } else {
+          copyUrl();
+        }
+      }
+
+      // Prévenir le zoom sur double-tap
+      let lastTouchEnd = 0;
+      document.addEventListener(
+        "touchend",
+        (e) => {
+          const now = Date.now();
+          if (now - lastTouchEnd <= 300) {
+            e.preventDefault();
+          }
+          lastTouchEnd = now;
+        },
+        false
+      );
+    </script>
+  </body>
+</html>
