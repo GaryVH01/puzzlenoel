@@ -511,7 +511,7 @@
       const loading = document.getElementById("loading");
 
       // Compresser l'image pour réduire la taille de l'URL
-      function compressImage(file, maxWidth = 800, quality = 0.8) {
+      function compressImage(file, maxWidth = 600, quality = 0.7) {
         return new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => {
@@ -532,7 +532,13 @@
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
 
-              const compressed = canvas.toDataURL("image/jpeg", quality);
+              // Réduire encore la qualité pour les très grandes images
+              let finalQuality = quality;
+              if (width * height > 300000) {
+                finalQuality = 0.6;
+              }
+
+              const compressed = canvas.toDataURL("image/jpeg", finalQuality);
               resolve(compressed);
             };
             img.src = e.target.result;
@@ -541,35 +547,93 @@
         });
       }
 
-      // Charger depuis URL
-      window.addEventListener("load", () => {
-        const params = new URLSearchParams(window.location.search);
-        const imgData = params.get("img");
-        const msg = params.get("msg");
-        const size = params.get("size");
+      // Charger depuis URL (utilise le hash # pour éviter les limites de longueur)
+      function loadFromURL() {
+        try {
+          // Essayer d'abord le hash (#), puis les query params pour compatibilité
+          let hashData = window.location.hash.substring(1);
+          let urlParams = window.location.search;
 
-        if (imgData && msg) {
-          // C'est un puzzle partagé - démarrer directement
-          imageData = decodeURIComponent(imgData);
-          customMessage = decodeURIComponent(msg);
-          gridSize = size ? parseInt(size) : 4;
+          let imgData = null;
+          let msg = null;
+          let size = null;
 
-          // Cacher toutes les étapes de création
-          step1.style.display = "none";
-          step2.style.display = "none";
-          shareSection.style.display = "none";
+          // Si on a un hash, l'utiliser (priorité)
+          if (hashData && hashData.length > 10) {
+            try {
+              const hashParams = new URLSearchParams(hashData);
+              imgData = hashParams.get("img");
+              msg = hashParams.get("msg");
+              size = hashParams.get("size");
+            } catch (e) {
+              console.log("Erreur lecture hash, essai query params");
+            }
+          }
 
-          // Afficher directement le puzzle
-          puzzleArea.style.display = "block";
+          // Sinon, essayer les query params
+          if ((!imgData || !msg) && urlParams && urlParams.length > 10) {
+            const params = new URLSearchParams(urlParams);
+            imgData = imgData || params.get("img");
+            msg = msg || params.get("msg");
+            size = size || params.get("size");
+          }
 
-          // Changer le titre pour indiquer qu'on joue un puzzle partagé
-          document.querySelector("h1").textContent = "🎄 Puzzle Partagé 🎁";
+          // Vérifier si on a les paramètres nécessaires
+          if (imgData && msg) {
+            // C'est un puzzle partagé - démarrer directement
+            try {
+              imageData = decodeURIComponent(imgData);
+              customMessage = decodeURIComponent(msg);
+              gridSize = size ? parseInt(size) : 4;
 
-          // Démarrer le puzzle automatiquement
-          initPuzzle();
-          startTimer();
+              // Vérifier que l'image est valide
+              if (!imageData || !imageData.startsWith("data:image")) {
+                console.error("Format d'image invalide ou manquant");
+                return;
+              }
+
+              console.log("Chargement du puzzle partagé...");
+
+              // Cacher toutes les étapes de création
+              step1.style.display = "none";
+              step2.style.display = "none";
+              shareSection.style.display = "none";
+
+              // Afficher directement le puzzle
+              puzzleArea.style.display = "block";
+
+              // Changer le titre pour indiquer qu'on joue un puzzle partagé
+              document.querySelector("h1").textContent = "🎄 Puzzle Partagé 🎁";
+
+              // Démarrer le puzzle automatiquement après un court délai pour s'assurer que tout est chargé
+              setTimeout(() => {
+                if (imageData) {
+                  initPuzzle();
+                  startTimer();
+                }
+              }, 100);
+            } catch (error) {
+              console.error(
+                "Erreur lors du chargement du puzzle partagé:",
+                error
+              );
+              // En cas d'erreur, afficher le formulaire normal
+            }
+          }
+        } catch (error) {
+          console.error("Erreur lors de la lecture des paramètres URL:", error);
         }
-      });
+      }
+
+      // Charger au démarrage
+      window.addEventListener("load", loadFromURL);
+      // Aussi essayer immédiatement au cas où le DOM serait déjà chargé
+      if (
+        document.readyState === "complete" ||
+        document.readyState === "interactive"
+      ) {
+        setTimeout(loadFromURL, 0);
+      }
 
       imageInput.addEventListener("change", async (e) => {
         const file = e.target.files[0];
@@ -598,12 +662,17 @@
             "🎄 Félicitations ! 🎁";
           gridSize = parseInt(document.getElementById("gridSize").value);
 
-          // Utiliser URL.createObjectURL pour les grandes images ou compresser davantage
-          const url = `${window.location.origin}${
-            window.location.pathname
-          }?img=${encodeURIComponent(imageData)}&msg=${encodeURIComponent(
-            customMessage
-          )}&size=${gridSize}`;
+          // Construire l'URL avec hash (#) pour éviter les limites de longueur
+          let baseUrl = window.location.origin;
+          const pathname = window.location.pathname || "/";
+          baseUrl += pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+
+          // Utiliser le hash (#) au lieu de query params pour les très longues URLs
+          const imgParam = encodeURIComponent(imageData);
+          const msgParam = encodeURIComponent(customMessage);
+          const url = `${baseUrl}#img=${imgParam}&msg=${msgParam}&size=${gridSize}`;
+
+          console.log("URL générée (longueur: " + url.length + " caractères)");
 
           document.getElementById("shareUrl").value = url;
           shareSection.style.display = "block";
