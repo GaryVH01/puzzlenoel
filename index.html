@@ -470,6 +470,16 @@
         <button class="btn" onclick="startPlaying()">
           🎮 Jouer maintenant
         </button>
+        <button
+          class="btn"
+          onclick="returnHome()"
+          style="
+            margin-top: 10px;
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+          "
+        >
+          🏠 Retour à l'accueil
+        </button>
       </div>
     </div>
 
@@ -1002,6 +1012,37 @@
             });
         } else {
           copyUrl();
+        }
+      }
+
+      // Retourner à l'accueil
+      function returnHome() {
+        // Réinitialiser toutes les variables
+        imageData = null;
+        customMessage = "";
+        moves = 0;
+        timer = 0;
+        stopTimer();
+
+        // Réinitialiser l'interface
+        step1.style.display = "block";
+        step2.style.display = "none";
+        puzzleArea.style.display = "none";
+        shareSection.style.display = "none";
+
+        // Réinitialiser les champs
+        document.getElementById("imageInput").value = "";
+        document.getElementById("imagePreview").innerHTML = "";
+        document.getElementById("messageInput").value =
+          "🎄 Félicitations ! Puzzle résolu ! 🎁";
+        document.getElementById("gridSize").value = "4";
+
+        // Remettre le titre original
+        document.querySelector("h1").textContent = "🎄 Puzzle de Noël 🎁";
+
+        // Nettoyer l'URL (retirer le hash)
+        if (window.location.hash) {
+          window.history.replaceState(null, null, window.location.pathname);
         }
       }
 
