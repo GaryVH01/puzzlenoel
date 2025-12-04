@@ -439,6 +439,23 @@
           placeholder="Ex: Joyeux Noël 2024 ! 🎄"
           value="🎄 Félicitations ! Puzzle résolu ! 🎁"
         />
+        <div style="margin-top: 15px">
+          <label
+            for="passwordInput"
+            style="display: block; margin-bottom: 8px; font-weight: bold"
+          >
+            🔒 Mot de passe (optionnel) :
+          </label>
+          <input
+            type="password"
+            id="passwordInput"
+            class="message-input"
+            placeholder="Laissez vide pour un accès libre"
+          />
+          <p style="font-size: 0.85em; color: #666; margin-top: 5px">
+            Si défini, le mot de passe sera requis pour accéder au puzzle
+          </p>
+        </div>
         <button class="btn" id="createPuzzleBtn">Créer le puzzle</button>
       </div>
 
@@ -480,6 +497,34 @@
         >
           🏠 Retour à l'accueil
         </button>
+        <div
+          style="
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            font-size: 0.85em;
+            color: #555;
+          "
+        >
+          <strong>ℹ️ Informations de sécurité :</strong>
+          <ul style="text-align: left; margin: 10px 0; padding-left: 20px">
+            <li>
+              ⏰ Le lien expire automatiquement après <strong>24 heures</strong>
+            </li>
+            <li>
+              📦 L'image est <strong>encodée dans l'URL</strong> (pas de
+              stockage serveur)
+            </li>
+            <li>
+              🔒 <strong>Quiconque a le lien</strong> peut voir l'image -
+              partagez avec précaution
+            </li>
+            <li>
+              🗑️ Pour supprimer : le lien devient inutilisable après expiration
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -495,6 +540,40 @@
           style="font-size: 1.2em; margin-top: 20px"
         >
           🔄 Nouveau puzzle
+        </button>
+      </div>
+    </div>
+
+    <div class="victory-overlay" id="passwordModal" style="display: none">
+      <div class="victory-content" style="max-width: 400px">
+        <h2 style="color: #c41e3a; margin-bottom: 20px">
+          🔒 Mot de passe requis
+        </h2>
+        <p style="color: white; margin-bottom: 20px">
+          Ce puzzle est protégé par un mot de passe. Veuillez le saisir pour
+          continuer.
+        </p>
+        <input
+          type="password"
+          id="passwordCheckInput"
+          class="message-input"
+          placeholder="Entrez le mot de passe"
+          style="width: 100%; margin-bottom: 15px"
+          onkeypress="if(event.key === 'Enter') checkPassword()"
+        />
+        <div
+          id="passwordError"
+          style="
+            color: #ffd700;
+            margin-bottom: 15px;
+            display: none;
+            font-weight: bold;
+          "
+        >
+          ❌ Mot de passe incorrect
+        </div>
+        <button class="btn" onclick="checkPassword()" style="width: 100%">
+          🔓 Accéder au puzzle
         </button>
       </div>
     </div>
@@ -519,6 +598,78 @@
       const puzzleArea = document.getElementById("puzzleArea");
       const shareSection = document.getElementById("shareSection");
       const loading = document.getElementById("loading");
+      let storedPasswordHash = null; // Hash du mot de passe stocké dans l'URL
+
+      // Hasher un mot de passe (hash simple mais efficace)
+      async function hashPassword(password) {
+        if (!password) return null;
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+
+      // Vérifier le mot de passe
+      async function checkPassword() {
+        const input = document.getElementById("passwordCheckInput");
+        const enteredPassword = input.value;
+        const errorDiv = document.getElementById("passwordError");
+
+        if (!enteredPassword) {
+          errorDiv.textContent = "❌ Veuillez entrer un mot de passe";
+          errorDiv.style.display = "block";
+          return;
+        }
+
+        const enteredHash = await hashPassword(enteredPassword);
+
+        if (enteredHash === storedPasswordHash) {
+          // Mot de passe correct
+          document.getElementById("passwordModal").style.display = "none";
+          // Continuer le chargement du puzzle
+          loadPuzzleFromStoredData();
+        } else {
+          // Mot de passe incorrect
+          errorDiv.textContent = "❌ Mot de passe incorrect";
+          errorDiv.style.display = "block";
+          input.value = "";
+          input.focus();
+        }
+      }
+
+      // Variables pour stocker temporairement les données du puzzle en attente de mot de passe
+      let pendingImageData = null;
+      let pendingMessage = null;
+      let pendingGridSize = 4;
+
+      // Charger le puzzle après vérification du mot de passe
+      function loadPuzzleFromStoredData() {
+        if (!pendingImageData) return;
+
+        imageData = pendingImageData;
+        customMessage = pendingMessage;
+        gridSize = pendingGridSize;
+
+        // Cacher toutes les étapes de création
+        step1.style.display = "none";
+        step2.style.display = "none";
+        shareSection.style.display = "none";
+
+        // Afficher directement le puzzle
+        puzzleArea.style.display = "block";
+
+        // Changer le titre
+        document.querySelector("h1").textContent = "🎄 Puzzle Partagé 🎁";
+
+        // Démarrer le puzzle
+        setTimeout(() => {
+          if (imageData) {
+            initPuzzle();
+            startTimer();
+          }
+        }, 100);
+      }
 
       // Compresser l'image pour réduire la taille de l'URL
       function compressImage(file, maxWidth = 600, quality = 0.7) {
@@ -567,6 +718,8 @@
           let imgData = null;
           let msg = null;
           let size = null;
+          let timestamp = null;
+          let passwordHash = null;
 
           // Si on a un hash, l'utiliser (priorité)
           if (hashData && hashData.length > 10) {
@@ -575,6 +728,8 @@
               imgData = hashParams.get("img");
               msg = hashParams.get("msg");
               size = hashParams.get("size");
+              timestamp = hashParams.get("t");
+              passwordHash = hashParams.get("p");
             } catch (e) {
               console.log("Erreur lecture hash, essai query params");
             }
@@ -586,23 +741,55 @@
             imgData = imgData || params.get("img");
             msg = msg || params.get("msg");
             size = size || params.get("size");
+            timestamp = timestamp || params.get("t");
+            passwordHash = passwordHash || params.get("p");
+          }
+
+          // Vérifier l'expiration (24 heures = 86400000 ms)
+          if (timestamp) {
+            const linkTimestamp = parseInt(timestamp);
+            const now = Date.now();
+            const expirationTime = 24 * 60 * 60 * 1000; // 24 heures
+
+            if (now - linkTimestamp > expirationTime) {
+              // Le lien a expiré
+              showExpiredMessage();
+              return;
+            }
           }
 
           // Vérifier si on a les paramètres nécessaires
           if (imgData && msg) {
-            // C'est un puzzle partagé - démarrer directement
+            // C'est un puzzle partagé
             try {
-              imageData = decodeURIComponent(imgData);
-              customMessage = decodeURIComponent(msg);
-              gridSize = size ? parseInt(size) : 4;
+              // Stocker temporairement les données
+              pendingImageData = decodeURIComponent(imgData);
+              pendingMessage = decodeURIComponent(msg);
+              pendingGridSize = size ? parseInt(size) : 4;
 
               // Vérifier que l'image est valide
-              if (!imageData || !imageData.startsWith("data:image")) {
+              if (
+                !pendingImageData ||
+                !pendingImageData.startsWith("data:image")
+              ) {
                 console.error("Format d'image invalide ou manquant");
                 return;
               }
 
+              // Vérifier si un mot de passe est requis
+              if (passwordHash) {
+                storedPasswordHash = passwordHash;
+                // Afficher le modal de mot de passe
+                document.getElementById("passwordModal").style.display = "flex";
+                document.getElementById("passwordCheckInput").focus();
+                return;
+              }
+
+              // Pas de mot de passe, charger directement
               console.log("Chargement du puzzle partagé...");
+              imageData = pendingImageData;
+              customMessage = pendingMessage;
+              gridSize = pendingGridSize;
 
               // Cacher toutes les étapes de création
               step1.style.display = "none";
@@ -633,6 +820,30 @@
         } catch (error) {
           console.error("Erreur lors de la lecture des paramètres URL:", error);
         }
+      }
+
+      // Afficher un message d'expiration
+      function showExpiredMessage() {
+        step1.style.display = "none";
+        step2.style.display = "none";
+        puzzleArea.style.display = "none";
+        shareSection.style.display = "none";
+
+        const expiredDiv = document.createElement("div");
+        expiredDiv.className = "step";
+        expiredDiv.style.background =
+          "linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)";
+        expiredDiv.style.color = "white";
+        expiredDiv.style.borderLeft = "5px solid #c41e3a";
+        expiredDiv.innerHTML = `
+          <h3>⏰ Lien expiré</h3>
+          <p>Ce lien de puzzle a expiré (valable 24 heures).</p>
+          <p>Demandez un nouveau lien à la personne qui a créé le puzzle.</p>
+          <button class="btn" onclick="returnHome()" style="background: white; color: #c41e3a; margin-top: 15px;">
+            🏠 Créer un nouveau puzzle
+          </button>
+        `;
+        document.querySelector(".container").appendChild(expiredDiv);
       }
 
       // Charger au démarrage
@@ -666,23 +877,42 @@
 
       document
         .getElementById("createPuzzleBtn")
-        .addEventListener("click", () => {
+        .addEventListener("click", async () => {
           customMessage =
             document.getElementById("messageInput").value ||
             "🎄 Félicitations ! 🎁";
           gridSize = parseInt(document.getElementById("gridSize").value);
+
+          // Récupérer et hasher le mot de passe si fourni
+          const passwordInput = document.getElementById("passwordInput");
+          const password = passwordInput.value.trim();
+          const passwordHash = password ? await hashPassword(password) : null;
 
           // Construire l'URL avec hash (#) pour éviter les limites de longueur
           let baseUrl = window.location.origin;
           const pathname = window.location.pathname || "/";
           baseUrl += pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 
+          // Ajouter un timestamp pour l'expiration (24 heures)
+          const timestamp = Date.now();
+
           // Utiliser le hash (#) au lieu de query params pour les très longues URLs
           const imgParam = encodeURIComponent(imageData);
           const msgParam = encodeURIComponent(customMessage);
-          const url = `${baseUrl}#img=${imgParam}&msg=${msgParam}&size=${gridSize}`;
+          let url = `${baseUrl}#img=${imgParam}&msg=${msgParam}&size=${gridSize}&t=${timestamp}`;
 
-          console.log("URL générée (longueur: " + url.length + " caractères)");
+          // Ajouter le hash du mot de passe si fourni
+          if (passwordHash) {
+            url += `&p=${passwordHash}`;
+          }
+
+          console.log(
+            "URL générée (longueur: " +
+              url.length +
+              " caractères, expire dans 24h" +
+              (passwordHash ? ", protégé par mot de passe" : "") +
+              ")"
+          );
 
           document.getElementById("shareUrl").value = url;
           shareSection.style.display = "block";
@@ -1036,6 +1266,8 @@
         document.getElementById("messageInput").value =
           "🎄 Félicitations ! Puzzle résolu ! 🎁";
         document.getElementById("gridSize").value = "4";
+        document.getElementById("passwordInput").value = "";
+        storedPasswordHash = null;
 
         // Remettre le titre original
         document.querySelector("h1").textContent = "🎄 Puzzle de Noël 🎁";
