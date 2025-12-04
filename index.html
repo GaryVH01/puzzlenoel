@@ -228,6 +228,36 @@
         }
       }
 
+      /* Styles pour le puzzle glisser-déposer */
+      .puzzle-piece.draggable {
+        cursor: grab;
+      }
+
+      .puzzle-piece.draggable:active {
+        cursor: grabbing;
+      }
+
+      .puzzle-piece.dragging {
+        opacity: 0.5;
+        transform: scale(1.1);
+        z-index: 1000;
+        box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
+      }
+
+      .puzzle-piece.drop-zone {
+        background: rgba(255, 215, 0, 0.3) !important;
+        border: 2px dashed #ffd700;
+      }
+
+      .puzzle-grid.dragdrop-mode {
+        position: relative;
+      }
+
+      .puzzle-piece.dragdrop-piece {
+        position: absolute;
+        transition: transform 0.2s ease;
+      }
+
       .share-section {
         display: none;
         margin: 20px 0;
@@ -421,6 +451,13 @@
         <div class="loading" id="loading">Chargement de l'image...</div>
 
         <div style="margin-top: 20px">
+          <label for="puzzleType">Type de puzzle :</label>
+          <select id="puzzleType" style="margin-bottom: 15px">
+            <option value="sliding">Puzzle glissant (clic)</option>
+            <option value="dragdrop">Puzzle classique (glisser-déposer)</option>
+          </select>
+        </div>
+        <div style="margin-top: 20px">
           <label for="gridSize">Difficulté :</label>
           <select id="gridSize">
             <option value="3">Facile (3×3)</option>
@@ -473,7 +510,10 @@
           <button class="btn" id="shuffleBtn">🔀 Nouveau mélange</button>
           <button class="btn" id="resetBtn">↺ Recommencer</button>
         </div>
-        <p style="margin-top: 15px; color: #666; font-size: 0.9em">
+        <p
+          style="margin-top: 15px; color: #666; font-size: 0.9em"
+          id="puzzleHint"
+        >
           💡 Résolvez le puzzle pour découvrir l'image complète !
         </p>
       </div>
@@ -580,6 +620,7 @@
 
     <script>
       let gridSize = 4;
+      let puzzleType = "sliding"; // "sliding" ou "dragdrop"
       let tiles = [];
       let emptyIndex;
       let imageData = null;
@@ -590,6 +631,7 @@
       let startTime = null;
       let touchStartX = null;
       let touchStartY = null;
+      let draggedElement = null; // Pour le drag and drop
 
       const imageInput = document.getElementById("imageInput");
       const puzzleGrid = document.getElementById("puzzleGrid");
@@ -642,6 +684,7 @@
       let pendingImageData = null;
       let pendingMessage = null;
       let pendingGridSize = 4;
+      let pendingPuzzleType = "sliding";
 
       // Charger le puzzle après vérification du mot de passe
       function loadPuzzleFromStoredData() {
@@ -650,6 +693,7 @@
         imageData = pendingImageData;
         customMessage = pendingMessage;
         gridSize = pendingGridSize;
+        puzzleType = pendingPuzzleType;
 
         // Cacher toutes les étapes de création
         step1.style.display = "none";
@@ -720,6 +764,7 @@
           let size = null;
           let timestamp = null;
           let passwordHash = null;
+          let type = null;
 
           // Si on a un hash, l'utiliser (priorité)
           if (hashData && hashData.length > 10) {
@@ -730,6 +775,7 @@
               size = hashParams.get("size");
               timestamp = hashParams.get("t");
               passwordHash = hashParams.get("p");
+              type = hashParams.get("type");
             } catch (e) {
               console.log("Erreur lecture hash, essai query params");
             }
@@ -743,6 +789,7 @@
             size = size || params.get("size");
             timestamp = timestamp || params.get("t");
             passwordHash = passwordHash || params.get("p");
+            type = type || params.get("type");
           }
 
           // Vérifier l'expiration (24 heures = 86400000 ms)
@@ -766,6 +813,7 @@
               pendingImageData = decodeURIComponent(imgData);
               pendingMessage = decodeURIComponent(msg);
               pendingGridSize = size ? parseInt(size) : 4;
+              pendingPuzzleType = type || "sliding"; // Par défaut, puzzle glissant
 
               // Vérifier que l'image est valide
               if (
@@ -790,6 +838,7 @@
               imageData = pendingImageData;
               customMessage = pendingMessage;
               gridSize = pendingGridSize;
+              puzzleType = pendingPuzzleType;
 
               // Cacher toutes les étapes de création
               step1.style.display = "none";
@@ -882,6 +931,7 @@
             document.getElementById("messageInput").value ||
             "🎄 Félicitations ! 🎁";
           gridSize = parseInt(document.getElementById("gridSize").value);
+          puzzleType = document.getElementById("puzzleType").value;
 
           // Récupérer et hasher le mot de passe si fourni
           const passwordInput = document.getElementById("passwordInput");
@@ -899,7 +949,7 @@
           // Utiliser le hash (#) au lieu de query params pour les très longues URLs
           const imgParam = encodeURIComponent(imageData);
           const msgParam = encodeURIComponent(customMessage);
-          let url = `${baseUrl}#img=${imgParam}&msg=${msgParam}&size=${gridSize}&t=${timestamp}`;
+          let url = `${baseUrl}#img=${imgParam}&msg=${msgParam}&size=${gridSize}&type=${puzzleType}&t=${timestamp}`;
 
           // Ajouter le hash du mot de passe si fourni
           if (passwordHash) {
@@ -930,9 +980,29 @@
       }
 
       function initPuzzle() {
+        // Mettre à jour le message d'aide selon le type
+        const hintElement = document.getElementById("puzzleHint");
+        if (puzzleType === "dragdrop") {
+          if (hintElement) {
+            hintElement.textContent =
+              "💡 Glissez-déposez les pièces pour reconstituer l'image !";
+          }
+          initPuzzleDragDrop();
+        } else {
+          if (hintElement) {
+            hintElement.textContent =
+              "💡 Cliquez sur les pièces pour les déplacer vers la case vide !";
+          }
+          initPuzzleSliding();
+        }
+      }
+
+      // Puzzle glissant (type original)
+      function initPuzzleSliding() {
         moves = 0;
         document.getElementById("moves").textContent = "0";
         puzzleGrid.innerHTML = "";
+        puzzleGrid.classList.remove("dragdrop-mode");
         tiles = [];
 
         const img = new Image();
@@ -984,7 +1054,290 @@
         img.src = imageData;
       }
 
+      // Puzzle glisser-déposer (nouveau type)
+      function initPuzzleDragDrop() {
+        moves = 0;
+        document.getElementById("moves").textContent = "0";
+        puzzleGrid.innerHTML = "";
+        puzzleGrid.classList.add("dragdrop-mode");
+        tiles = [];
+
+        const img = new Image();
+        img.onload = () => {
+          const containerWidth = Math.min(window.innerWidth - 60, 600);
+          const tileSize = Math.floor(containerWidth / gridSize);
+          const totalSize = tileSize * gridSize;
+
+          puzzleGrid.style.gridTemplateColumns = `repeat(${gridSize}, ${tileSize}px)`;
+          puzzleGrid.style.gridTemplateRows = `repeat(${gridSize}, ${tileSize}px)`;
+          puzzleGrid.style.position = "relative";
+          puzzleGrid.style.width = `${tileSize * gridSize}px`;
+          puzzleGrid.style.height = `${tileSize * gridSize}px`;
+
+          // Créer toutes les pièces
+          const pieces = [];
+          for (let i = 0; i < gridSize * gridSize; i++) {
+            const row = Math.floor(i / gridSize);
+            const col = i % gridSize;
+
+            const tile = document.createElement("div");
+            tile.className = "puzzle-piece draggable dragdrop-piece";
+            tile.dataset.pieceIndex = i;
+            tile.dataset.correctIndex = i;
+            tile.draggable = true;
+
+            tile.style.backgroundImage = `url(${imageData})`;
+            tile.style.backgroundSize = `${totalSize}px ${totalSize}px`;
+            tile.style.backgroundPosition = `-${col * tileSize}px -${
+              row * tileSize
+            }px`;
+            tile.style.width = `${tileSize}px`;
+            tile.style.height = `${tileSize}px`;
+            tile.style.left = `${col * tileSize}px`;
+            tile.style.top = `${row * tileSize}px`;
+
+            // Événements drag and drop
+            tile.addEventListener("dragstart", handleDragStart);
+            tile.addEventListener("dragend", handleDragEnd);
+            tile.addEventListener("dragover", handleDragOver);
+            tile.addEventListener("drop", handleDrop);
+            tile.addEventListener("dragenter", handleDragEnter);
+            tile.addEventListener("dragleave", handleDragLeave);
+
+            // Support tactile pour mobile
+            tile.addEventListener("touchstart", handleTouchStartDrag, {
+              passive: false,
+            });
+            tile.addEventListener("touchmove", handleTouchMoveDrag, {
+              passive: false,
+            });
+            tile.addEventListener("touchend", handleTouchEndDrag, {
+              passive: false,
+            });
+
+            puzzleGrid.appendChild(tile);
+            pieces.push(tile);
+            tiles.push(tile);
+          }
+
+          // Mélanger les positions
+          shuffleDragDrop();
+        };
+        img.src = imageData;
+      }
+
+      // Fonctions drag and drop
+      function handleDragStart(e) {
+        draggedElement = e.target;
+        e.target.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/html", e.target.outerHTML);
+      }
+
+      function handleDragEnd(e) {
+        e.target.classList.remove("dragging");
+        // Retirer la classe drop-zone de toutes les pièces
+        tiles.forEach((tile) => tile.classList.remove("drop-zone"));
+      }
+
+      function handleDragOver(e) {
+        if (e.preventDefault) {
+          e.preventDefault();
+        }
+        e.dataTransfer.dropEffect = "move";
+        return false;
+      }
+
+      function handleDragEnter(e) {
+        if (
+          e.target !== draggedElement &&
+          e.target.classList.contains("puzzle-piece")
+        ) {
+          e.target.classList.add("drop-zone");
+        }
+      }
+
+      function handleDragLeave(e) {
+        e.target.classList.remove("drop-zone");
+      }
+
+      function handleDrop(e) {
+        if (e.stopPropagation) {
+          e.stopPropagation();
+        }
+
+        if (
+          draggedElement !== e.target &&
+          e.target.classList.contains("puzzle-piece")
+        ) {
+          // Échanger les positions
+          swapPiecesDragDrop(draggedElement, e.target);
+
+          moves++;
+          document.getElementById("moves").textContent = moves;
+
+          if (!startTime) {
+            startTimer();
+          }
+
+          if (checkWinDragDrop()) {
+            setTimeout(showVictory, 400);
+          }
+        }
+
+        e.target.classList.remove("drop-zone");
+        draggedElement = null;
+        return false;
+      }
+
+      // Support tactile pour drag and drop sur mobile
+      let touchDragStartX = 0;
+      let touchDragStartY = 0;
+      let touchDragElement = null;
+
+      function handleTouchStartDrag(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        touchDragStartX = touch.clientX;
+        touchDragStartY = touch.clientY;
+        touchDragElement = e.target;
+        touchDragElement.style.transition = "none";
+      }
+
+      function handleTouchMoveDrag(e) {
+        if (!touchDragElement) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - touchDragStartX;
+        const deltaY = touch.clientY - touchDragStartY;
+
+        const rect = touchDragElement.getBoundingClientRect();
+        const gridRect = puzzleGrid.getBoundingClientRect();
+
+        touchDragElement.style.position = "fixed";
+        touchDragElement.style.left = rect.left + deltaX + "px";
+        touchDragElement.style.top = rect.top + deltaY + "px";
+        touchDragElement.style.zIndex = "1000";
+        touchDragElement.style.opacity = "0.7";
+
+        // Trouver la pièce sous le doigt
+        const elementBelow = document.elementFromPoint(
+          touch.clientX,
+          touch.clientY
+        );
+        tiles.forEach((tile) => tile.classList.remove("drop-zone"));
+        if (
+          elementBelow &&
+          elementBelow.classList.contains("puzzle-piece") &&
+          elementBelow !== touchDragElement
+        ) {
+          elementBelow.classList.add("drop-zone");
+        }
+      }
+
+      function handleTouchEndDrag(e) {
+        if (!touchDragElement) return;
+        e.preventDefault();
+
+        const touch = e.changedTouches[0];
+        const elementBelow = document.elementFromPoint(
+          touch.clientX,
+          touch.clientY
+        );
+
+        if (
+          elementBelow &&
+          elementBelow.classList.contains("puzzle-piece") &&
+          elementBelow !== touchDragElement
+        ) {
+          swapPiecesDragDrop(touchDragElement, elementBelow);
+
+          moves++;
+          document.getElementById("moves").textContent = moves;
+
+          if (!startTime) {
+            startTimer();
+          }
+
+          if (checkWinDragDrop()) {
+            setTimeout(showVictory, 400);
+          }
+        } else {
+          // Remettre la pièce à sa place
+          const tileSize = parseInt(touchDragElement.style.width);
+          const currentIndex = parseInt(touchDragElement.dataset.pieceIndex);
+          const row = Math.floor(currentIndex / gridSize);
+          const col = currentIndex % gridSize;
+          touchDragElement.style.left = `${col * tileSize}px`;
+          touchDragElement.style.top = `${row * tileSize}px`;
+        }
+
+        touchDragElement.style.position = "absolute";
+        touchDragElement.style.zIndex = "1";
+        touchDragElement.style.opacity = "1";
+        touchDragElement.style.transition = "transform 0.2s ease";
+        tiles.forEach((tile) => tile.classList.remove("drop-zone"));
+
+        touchDragElement = null;
+      }
+
+      // Échanger deux pièces dans le puzzle drag and drop
+      function swapPiecesDragDrop(piece1, piece2) {
+        const tileSize = parseInt(piece1.style.width);
+
+        // Récupérer les positions actuelles des pièces
+        const pos1 = parseInt(piece1.dataset.pieceIndex);
+        const pos2 = parseInt(piece2.dataset.pieceIndex);
+
+        // Calculer les nouvelles positions visuelles
+        const row1 = Math.floor(pos2 / gridSize);
+        const col1 = pos2 % gridSize;
+        const row2 = Math.floor(pos1 / gridSize);
+        const col2 = pos1 % gridSize;
+
+        // Échanger les positions visuelles
+        piece1.style.left = `${col1 * tileSize}px`;
+        piece1.style.top = `${row1 * tileSize}px`;
+        piece2.style.left = `${col2 * tileSize}px`;
+        piece2.style.top = `${row2 * tileSize}px`;
+
+        // Échanger les indices pieceIndex (position actuelle)
+        piece1.dataset.pieceIndex = pos2;
+        piece2.dataset.pieceIndex = pos1;
+      }
+
+      // Mélanger le puzzle drag and drop
+      function shuffleDragDrop() {
+        if (tiles.length === 0) return;
+
+        const tileSize = parseInt(tiles[0].style.width);
+        const totalPieces = tiles.length;
+
+        // Mélanger les indices (positions)
+        const positions = Array.from({ length: totalPieces }, (_, i) => i);
+        for (let i = positions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [positions[i], positions[j]] = [positions[j], positions[i]];
+        }
+
+        // Appliquer les nouvelles positions
+        tiles.forEach((tile, i) => {
+          const newPosition = positions[i];
+          const row = Math.floor(newPosition / gridSize);
+          const col = newPosition % gridSize;
+
+          tile.style.left = `${col * tileSize}px`;
+          tile.style.top = `${row * tileSize}px`;
+          tile.dataset.pieceIndex = newPosition;
+        });
+
+        moves = 0;
+        document.getElementById("moves").textContent = "0";
+      }
+
+      // Fonctions pour le puzzle glissant
       function handleTouchStart(e) {
+        if (puzzleType === "dragdrop") return; // Ne pas interférer avec le drag drop
         e.preventDefault();
         const touch = e.touches[0];
         touchStartX = touch.clientX;
@@ -1122,11 +1475,31 @@
       }
 
       function checkWin() {
+        if (puzzleType === "dragdrop") {
+          return checkWinDragDrop();
+        }
+
+        // Pour le puzzle glissant
         for (let i = 0; i < tiles.length; i++) {
           if (parseInt(tiles[i].dataset.correctIndex) !== i) {
             return false;
           }
         }
+        return true;
+      }
+
+      // Vérifier la victoire pour le puzzle drag and drop
+      function checkWinDragDrop() {
+        for (let i = 0; i < tiles.length; i++) {
+          const pieceIndex = parseInt(tiles[i].dataset.pieceIndex);
+          const correctIndex = parseInt(tiles[i].dataset.correctIndex);
+          if (pieceIndex !== correctIndex) {
+            return false;
+          }
+        }
+        // Toutes les pièces sont à la bonne place
+        isSolved = true;
+        stopTimer();
         return true;
       }
 
@@ -1201,7 +1574,11 @@
       }
 
       document.getElementById("shuffleBtn").addEventListener("click", () => {
-        shuffle();
+        if (puzzleType === "dragdrop") {
+          shuffleDragDrop();
+        } else {
+          shuffle();
+        }
         stopTimer();
         startTimer();
       });
@@ -1252,6 +1629,7 @@
         customMessage = "";
         moves = 0;
         timer = 0;
+        puzzleType = "sliding";
         stopTimer();
 
         // Réinitialiser l'interface
@@ -1266,6 +1644,7 @@
         document.getElementById("messageInput").value =
           "🎄 Félicitations ! Puzzle résolu ! 🎁";
         document.getElementById("gridSize").value = "4";
+        document.getElementById("puzzleType").value = "sliding";
         document.getElementById("passwordInput").value = "";
         storedPasswordHash = null;
 
