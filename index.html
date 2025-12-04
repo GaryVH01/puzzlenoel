@@ -456,6 +456,9 @@
           <button class="btn" id="shuffleBtn">🔀 Nouveau mélange</button>
           <button class="btn" id="resetBtn">↺ Recommencer</button>
         </div>
+        <p style="margin-top: 15px; color: #666; font-size: 0.9em">
+          💡 Résolvez le puzzle pour découvrir l'image complète !
+        </p>
       </div>
 
       <div class="share-section" id="shareSection">
@@ -546,14 +549,23 @@
         const size = params.get("size");
 
         if (imgData && msg) {
+          // C'est un puzzle partagé - démarrer directement
           imageData = decodeURIComponent(imgData);
           customMessage = decodeURIComponent(msg);
           gridSize = size ? parseInt(size) : 4;
 
+          // Cacher toutes les étapes de création
           step1.style.display = "none";
           step2.style.display = "none";
+          shareSection.style.display = "none";
+
+          // Afficher directement le puzzle
           puzzleArea.style.display = "block";
 
+          // Changer le titre pour indiquer qu'on joue un puzzle partagé
+          document.querySelector("h1").textContent = "🎄 Puzzle Partagé 🎁";
+
+          // Démarrer le puzzle automatiquement
           initPuzzle();
           startTimer();
         }
@@ -602,6 +614,8 @@
       function startPlaying() {
         shareSection.style.display = "none";
         puzzleArea.style.display = "block";
+        // Remettre le titre original si on joue depuis la création
+        document.querySelector("h1").textContent = "🎄 Puzzle de Noël 🎁";
         initPuzzle();
         startTimer();
       }
@@ -810,6 +824,7 @@
       function showVictory() {
         stopTimer();
 
+        // Afficher l'image complète seulement à la victoire
         document.getElementById("victoryImage").src = imageData;
         document.getElementById("victoryMessage").textContent = customMessage;
         document.getElementById(
