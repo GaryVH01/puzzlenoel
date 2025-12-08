@@ -643,6 +643,11 @@
       const loading = document.getElementById("loading");
       let storedPasswordHash = null; // Hash du mot de passe stocké dans l'URL
 
+      // URL du backend (modifiez selon votre déploiement)
+      // Pour le développement local : 'http://localhost:3000'
+      // Pour la production : 'https://votre-backend.herokuapp.com' ou votre URL
+      const BACKEND_URL = "https://puzzlenoel.onrender.com"; // ⚠️ MODIFIEZ CETTE URL selon votre déploiement
+
       // Nettoyer les anciennes entrées localStorage expirées
       function cleanupExpiredPuzzles() {
         try {
@@ -823,7 +828,7 @@
 
       // Compresser l'image pour réduire la taille de l'URL (compression maximale)
       function compressImage(file, maxWidth = 500, quality = 0.5) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => {
             const img = new Image();
@@ -843,19 +848,59 @@
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
 
-              // Compression agressive pour réduire la taille de l'URL
+              // Compression agressive pour réduire la taille
               let finalQuality = quality;
-              if (width * height > 200000) {
+              const pixelCount = width * height;
+              if (pixelCount > 200000) {
+                finalQuality = 0.35; // Compression plus agressive
+              } else if (pixelCount > 100000) {
                 finalQuality = 0.4;
-              } else if (width * height > 100000) {
-                finalQuality = 0.45;
               }
 
-              const compressed = canvas.toDataURL("image/jpeg", finalQuality);
+              let compressed = canvas.toDataURL("image/jpeg", finalQuality);
+
+              // Si l'image est encore trop grande (> 10MB en base64), réduire encore plus
+              let attempts = 0;
+              while (compressed.length > 10 * 1024 * 1024 && attempts < 3) {
+                finalQuality = Math.max(0.2, finalQuality - 0.1);
+                maxWidth = Math.max(300, maxWidth - 50);
+
+                // Recompresser avec des paramètres plus agressifs
+                if (width > maxWidth) {
+                  height = (height * maxWidth) / width;
+                  width = maxWidth;
+                  canvas.width = width;
+                  canvas.height = height;
+                  ctx.drawImage(img, 0, 0, width, height);
+                }
+
+                compressed = canvas.toDataURL("image/jpeg", finalQuality);
+                attempts++;
+              }
+
+              // Vérifier la taille finale
+              if (compressed.length > 12 * 1024 * 1024) {
+                reject(
+                  new Error(
+                    "Image trop grande même après compression. Veuillez choisir une image plus petite."
+                  )
+                );
+                return;
+              }
+
+              console.log(
+                `📸 Image compressée: ${Math.round(
+                  compressed.length / 1024
+                )} KB (${width}x${height}, qualité: ${finalQuality.toFixed(2)})`
+              );
               resolve(compressed);
             };
+            img.onerror = () =>
+              reject(new Error("Erreur lors du chargement de l'image"));
             img.src = e.target.result;
           };
+          reader.onerror = () =>
+            reject(new Error("Erreur lors de la lecture du fichier"));
           reader.readAsDataURL(file);
         });
       }
@@ -922,27 +967,30 @@
               console.warn("Erreur lors du chargement depuis localStorage:", e);
             }
 
-            // Si pas trouvé localement, essayer de charger depuis jsonblob.com
-            // Le puzzleId est maintenant directement le blobId
+            // Si pas trouvé localement, essayer de charger depuis le backend
             if (!loaded) {
               loading.style.display = "block";
               loading.textContent = "Chargement du puzzle...";
 
-              // Charger directement depuis jsonblob.com avec le puzzleId (qui est le blobId)
-              fetch(`https://jsonblob.com/api/jsonBlob/${puzzleId}`, {
+              fetch(`${BACKEND_URL}/api/puzzle/${puzzleId}`, {
                 method: "GET",
               })
                 .then((response) => {
-                  if (!response.ok) throw new Error("Puzzle introuvable");
+                  if (response.status === 404) {
+                    throw new Error("Puzzle introuvable");
+                  }
+                  if (response.status === 410) {
+                    showExpiredMessage();
+                    loading.style.display = "none";
+                    return null;
+                  }
+                  if (!response.ok) {
+                    throw new Error(`Erreur serveur: ${response.status}`);
+                  }
                   return response.json();
                 })
                 .then((data) => {
-                  // Vérifier l'expiration
-                  if (data.expires && data.expires < Date.now()) {
-                    showExpiredMessage();
-                    loading.style.display = "none";
-                    return;
-                  }
+                  if (!data) return; // Expiré, déjà géré
 
                   // Extraire les données
                   imgData = data.img;
@@ -954,7 +1002,13 @@
 
                   // Sauvegarder localement pour la prochaine fois
                   try {
-                    localStorage.setItem(storageKey, JSON.stringify(data));
+                    localStorage.setItem(
+                      storageKey,
+                      JSON.stringify({
+                        ...data,
+                        expires: timestamp + 24 * 60 * 60 * 1000,
+                      })
+                    );
                   } catch (e) {
                     console.warn("Impossible de sauvegarder localement:", e);
                   }
@@ -1004,28 +1058,15 @@
                     <h3>❌ Puzzle introuvable</h3>
                     <p>Le puzzle avec l'ID "${puzzleId}" n'a pas été trouvé.</p>
                     <p style="font-size: 0.9em; margin-top: 10px;">Le lien peut avoir expiré (24h) ou avoir été supprimé.</p>
+                    <p style="font-size: 0.85em; margin-top: 10px; opacity: 0.9;">
+                      Vérifiez aussi que le backend est accessible à : <code>${BACKEND_URL}</code>
+                    </p>
                     <button class="btn" onclick="returnHome()" style="background: white; color: #c41e3a; margin-top: 15px;">
                       🏠 Créer un nouveau puzzle
                     </button>
                   `;
                   document.querySelector(".container").appendChild(errorDiv);
                 });
-
-              // Si chargé depuis localStorage, traiter directement
-              if (loaded) {
-                processLoadedPuzzleData(
-                  imgData,
-                  msg,
-                  size,
-                  type,
-                  timestamp,
-                  passwordHash
-                );
-                return; // Sortir car on a déjà traité
-              } else {
-                // Attendre le chargement asynchrone (la fonction processLoadedPuzzleData sera appelée dans .finally())
-                return;
-              }
             }
           }
 
@@ -1345,10 +1386,21 @@
                 `;
                 container.insertBefore(errorMsg, container.firstChild);
               }
+            } else {
+              // Pas de données dans l'URL, afficher le formulaire de création
+              step1.style.display = "block";
+              step2.style.display = "none";
+              puzzleArea.style.display = "none";
+              shareSection.style.display = "none";
             }
           }
         } catch (error) {
           console.error("Erreur lors de la lecture des paramètres URL:", error);
+          // En cas d'erreur, afficher le formulaire de création
+          step1.style.display = "block";
+          step2.style.display = "none";
+          puzzleArea.style.display = "none";
+          shareSection.style.display = "none";
         }
       }
 
@@ -1398,7 +1450,12 @@
 
             step2.style.display = "block";
           } catch (error) {
-            alert("Erreur lors du chargement de l'image");
+            console.error("Erreur compression:", error);
+            alert(
+              error.message ||
+                "Erreur lors du chargement de l'image. Veuillez choisir une image plus petite."
+            );
+            imageData = null;
           } finally {
             loading.style.display = "none";
           }
@@ -1427,6 +1484,22 @@
           // Ajouter un timestamp pour l'expiration (24 heures)
           const timestamp = Date.now();
 
+          // Vérifier que l'image est chargée
+          if (!imageData) {
+            alert("Veuillez d'abord sélectionner une image.");
+            return;
+          }
+
+          // Vérifier la taille de l'image avant l'envoi (limite MongoDB: 16MB, on limite à 12MB pour sécurité)
+          if (imageData.length > 12 * 1024 * 1024) {
+            alert(
+              "L'image est trop grande (" +
+                Math.round(imageData.length / 1024 / 1024) +
+                " MB). Veuillez choisir une image plus petite."
+            );
+            return;
+          }
+
           // Générer un ID sécurisé unique (12 caractères aléatoires cryptographiquement sécurisés)
           function generateShortId() {
             // Utiliser crypto.getRandomValues pour une génération vraiment aléatoire et sécurisée
@@ -1454,7 +1527,7 @@
             expires: timestamp + 24 * 60 * 60 * 1000, // 24 heures
           };
 
-          // Stocker dans localStorage (backup local) ET essayer de stocker en ligne
+          // Stocker dans localStorage (backup local)
           const storageKey = `puzzle_${puzzleId}`;
           try {
             localStorage.setItem(storageKey, JSON.stringify(puzzleData));
@@ -1466,10 +1539,89 @@
             console.warn("Impossible de stocker dans localStorage:", e);
           }
 
-          // Stocker en ligne avec jsonblob.com (gratuit, supporte CORS)
+          // Stocker en ligne via le backend
           loading.style.display = "block";
           loading.textContent = "Création du lien de partage...";
 
+          console.log(
+            "🌐 Tentative de stockage sur:",
+            `${BACKEND_URL}/api/puzzle`
+          );
+
+          fetch(`${BACKEND_URL}/api/puzzle`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              puzzleId,
+              ...puzzleData,
+            }),
+          })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(`Erreur serveur: ${response.status}`);
+              }
+              return response.json();
+            })
+            .then((data) => {
+              console.log(
+                "✅ Données stockées en ligne avec succès, ID:",
+                data.puzzleId
+              );
+              loading.style.display = "none";
+
+              // Créer l'URL avec le puzzleId
+              let url = `${baseUrl}#id=${puzzleId}`;
+              shareUrlComplete = url;
+              document.getElementById("shareUrl").value = url;
+
+              shareSection.style.display = "block";
+              step1.style.display = "none";
+              step2.style.display = "none";
+            })
+            .catch((error) => {
+              console.error("⚠️ Erreur lors du stockage en ligne:", error);
+              loading.style.display = "none";
+
+              // Créer quand même l'URL (fonctionnera localement)
+              let url = `${baseUrl}#id=${puzzleId}`;
+              shareUrlComplete = url;
+              document.getElementById("shareUrl").value = url;
+
+              // Afficher un avertissement
+              const warningDiv = document.createElement("div");
+              warningDiv.className = "step";
+              warningDiv.style.background =
+                "linear-gradient(135deg, #ff9800 0%, #f57c00 100%)";
+              warningDiv.style.color = "white";
+              warningDiv.style.borderLeft = "5px solid #e65100";
+              warningDiv.style.marginTop = "15px";
+              warningDiv.innerHTML = `
+                <h3>⚠️ Erreur de connexion au serveur</h3>
+                <p>Le puzzle a été sauvegardé localement mais n'a pas pu être partagé en ligne.</p>
+                <p style="font-size: 0.9em; margin-top: 10px;">
+                  Le lien fonctionnera uniquement sur <strong>ce navigateur/appareil</strong>.
+                </p>
+                <p style="font-size: 0.85em; margin-top: 10px; opacity: 0.9;">
+                  Vérifiez que le backend est démarré et accessible à l'adresse : <code>${BACKEND_URL}</code>
+                </p>
+              `;
+
+              shareSection.style.display = "block";
+              step1.style.display = "none";
+              step2.style.display = "none";
+
+              setTimeout(() => {
+                const shareSectionEl = document.getElementById("shareSection");
+                if (shareSectionEl && !shareSectionEl.querySelector(".step")) {
+                  shareSectionEl.appendChild(warningDiv);
+                }
+              }, 100);
+            });
+
+          // Code commenté pour référence future si on veut utiliser un service en ligne
+          /*
           fetch("https://jsonblob.com/api/jsonBlob", {
             method: "POST",
             headers: {
@@ -1478,7 +1630,6 @@
             body: JSON.stringify(puzzleData),
           })
             .then((response) => {
-              // jsonblob.com retourne l'ID dans le header Location
               const location = response.headers.get("Location");
               const blobId = location ? location.split("/").pop() : null;
 
@@ -1543,10 +1694,7 @@
               step1.style.display = "none";
               step2.style.display = "none";
             });
-
-          // L'URL sera créée de manière asynchrone dans le .then() ou .catch() ci-dessus
-          step1.style.display = "none";
-          step2.style.display = "none";
+          */
         });
 
       function startPlaying() {

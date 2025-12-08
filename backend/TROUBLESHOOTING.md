@@ -50,9 +50,26 @@ Dans Render → Logs, vous devriez voir :
 ### 4. Vérifier MongoDB Atlas
 
 1. Allez sur https://cloud.mongodb.com
-2. Vérifiez que votre cluster est actif
-3. Vérifiez Network Access → ajoutez `0.0.0.0/0` si nécessaire
-4. Vérifiez Database Access → votre utilisateur existe et a les bonnes permissions
+2. Connectez-vous à votre compte
+3. Sélectionnez votre projet/organisation
+4. Vérifiez que votre cluster est actif
+
+**Pour Network Access (whitelist IP) :**
+
+- Dans le menu de gauche, cherchez **"Security"** ou **"Network Access"** ou **"IP Access List"**
+- Ou cliquez sur **"Network Access"** dans le menu principal
+- Si vous ne le voyez pas, essayez :
+  - Menu latéral → **"Security"** → **"Network Access"**
+  - Ou directement : https://cloud.mongodb.com/v2#/security/network/whitelist
+- Cliquez sur **"Add IP Address"** ou **"ADD IP ADDRESS"**
+- Choisissez **"Allow Access from Anywhere"** (recommandé pour Render)
+  - Ou ajoutez manuellement : `0.0.0.0/0`
+- Cliquez sur **"Confirm"**
+
+**Pour Database Access :**
+
+- Dans le menu de gauche, cherchez **"Database Access"** ou **"Security"** → **"Database Access"**
+- Vérifiez que votre utilisateur existe et a les permissions **"Read and write to any database"**
 
 ## Solutions
 

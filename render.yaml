@@ -1,0 +1,13 @@
+# Configuration Render (optionnel)
+# Ce fichier permet de déployer automatiquement depuis Git
+
+services:
+  - type: web
+    name: puzzle-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: MONGODB_URI
+        sync: false # Vous devrez ajouter cette variable manuellement dans Render
+    healthCheckPath: /health
