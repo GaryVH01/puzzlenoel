@@ -632,6 +632,7 @@
       let touchStartX = null;
       let touchStartY = null;
       let draggedElement = null; // Pour le drag and drop
+      let shareUrlComplete = null; // URL complète pour le partage (évite la troncature du champ input)
 
       const imageInput = document.getElementById("imageInput");
       const puzzleGrid = document.getElementById("puzzleGrid");
@@ -641,6 +642,39 @@
       const shareSection = document.getElementById("shareSection");
       const loading = document.getElementById("loading");
       let storedPasswordHash = null; // Hash du mot de passe stocké dans l'URL
+
+      // Nettoyer les anciennes entrées localStorage expirées
+      function cleanupExpiredPuzzles() {
+        try {
+          const keys = Object.keys(localStorage);
+          let cleaned = 0;
+          for (let key of keys) {
+            if (key.startsWith("puzzle_")) {
+              try {
+                const stored = JSON.parse(localStorage.getItem(key));
+                if (stored && stored.expires && stored.expires < Date.now()) {
+                  localStorage.removeItem(key);
+                  cleaned++;
+                }
+              } catch (err) {
+                // Si erreur de parsing, supprimer l'entrée
+                localStorage.removeItem(key);
+                cleaned++;
+              }
+            }
+          }
+          if (cleaned > 0) {
+            console.log(
+              `Nettoyage: ${cleaned} puzzle(s) expiré(s) supprimé(s)`
+            );
+          }
+        } catch (e) {
+          console.error("Erreur lors du nettoyage:", e);
+        }
+      }
+
+      // Nettoyer au chargement de la page
+      cleanupExpiredPuzzles();
 
       // Hasher un mot de passe (hash simple mais efficace)
       async function hashPassword(password) {
@@ -754,7 +788,7 @@
         });
       }
 
-      // Charger depuis URL (utilise le hash # pour éviter les limites de longueur)
+      // Charger depuis URL (nouveau format avec ID court ou ancien format pour compatibilité)
       function loadFromURL() {
         try {
           // Essayer d'abord le hash (#), puis les query params pour compatibilité
@@ -762,12 +796,8 @@
           let urlParams = window.location.search;
 
           console.log(
-            "loadFromURL - hashData length:",
-            hashData ? hashData.length : 0
-          );
-          console.log(
-            "loadFromURL - urlParams length:",
-            urlParams ? urlParams.length : 0
+            "loadFromURL - hashData:",
+            hashData ? hashData.substring(0, 50) : "vide"
           );
 
           let imgData = null;
@@ -776,10 +806,242 @@
           let timestamp = null;
           let passwordHash = null;
           let type = null;
+          let puzzleId = null;
 
-          // Si on a un hash, l'utiliser (priorité)
-          if (hashData && hashData.length > 10) {
-            // Fonction de parsing robuste basée sur l'ordre fixe des paramètres
+          // Vérifier si c'est le nouveau format avec ID court (#id=xxxxx)
+          if (hashData && hashData.startsWith("id=")) {
+            puzzleId = hashData.substring(3);
+            console.log("Format ID court détecté, ID:", puzzleId);
+
+            // Essayer de charger depuis localStorage d'abord
+            const storageKey = `puzzle_${puzzleId}`;
+            let loaded = false;
+
+            try {
+              const stored = localStorage.getItem(storageKey);
+              if (stored) {
+                const puzzleData = JSON.parse(stored);
+
+                // Vérifier l'expiration
+                if (puzzleData.expires && puzzleData.expires < Date.now()) {
+                  console.log("Les données ont expiré");
+                  localStorage.removeItem(storageKey);
+                  showExpiredMessage();
+                  return;
+                }
+
+                // Extraire les données
+                imgData = puzzleData.img;
+                msg = puzzleData.msg;
+                size = puzzleData.size;
+                type = puzzleData.type;
+                timestamp = puzzleData.t;
+                passwordHash = puzzleData.p;
+
+                loaded = true;
+                console.log("✅ Données chargées depuis localStorage:", {
+                  hasImg: !!imgData,
+                  hasMsg: !!msg,
+                  size: size,
+                  type: type,
+                });
+              }
+            } catch (e) {
+              console.warn("Erreur lors du chargement depuis localStorage:", e);
+            }
+
+            // Si pas trouvé localement, essayer de charger depuis jsonstorage.net
+            if (!loaded) {
+              loading.style.display = "block";
+              loading.textContent = "Chargement du puzzle...";
+
+              fetch(`https://jsonstorage.net/api/items/${puzzleId}`, {
+                method: "GET",
+              })
+                .then((response) => {
+                  if (!response.ok) throw new Error("Puzzle introuvable");
+                  return response.json();
+                })
+                .then((data) => {
+                  // Vérifier l'expiration
+                  if (data.expires && data.expires < Date.now()) {
+                    showExpiredMessage();
+                    loading.style.display = "none";
+                    return;
+                  }
+
+                  // Extraire les données
+                  imgData = data.img;
+                  msg = data.msg;
+                  size = data.size;
+                  type = data.type;
+                  timestamp = data.t;
+                  passwordHash = data.p;
+
+                  // Sauvegarder localement pour la prochaine fois
+                  try {
+                    localStorage.setItem(storageKey, JSON.stringify(data));
+                  } catch (e) {
+                    console.warn("Impossible de sauvegarder localement:", e);
+                  }
+
+                  console.log("✅ Données chargées depuis le serveur:", {
+                    hasImg: !!imgData,
+                    hasMsg: !!msg,
+                    size: size,
+                    type: type,
+                  });
+
+                  loading.style.display = "none";
+                  loaded = true;
+                })
+                .catch((error) => {
+                  console.error(
+                    "Erreur lors du chargement depuis le serveur:",
+                    error
+                  );
+                  loading.style.display = "none";
+
+                  // Afficher un message d'erreur
+                  step1.style.display = "none";
+                  step2.style.display = "none";
+                  puzzleArea.style.display = "none";
+                  shareSection.style.display = "none";
+
+                  const errorDiv = document.createElement("div");
+                  errorDiv.className = "step";
+                  errorDiv.style.background =
+                    "linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)";
+                  errorDiv.style.color = "white";
+                  errorDiv.style.borderLeft = "5px solid #c41e3a";
+                  errorDiv.innerHTML = `
+                  <h3>❌ Puzzle introuvable</h3>
+                  <p>Le puzzle avec l'ID "${puzzleId}" n'a pas été trouvé.</p>
+                  <p style="font-size: 0.9em; margin-top: 10px;">Le lien peut avoir expiré (24h) ou avoir été supprimé.</p>
+                  <button class="btn" onclick="returnHome()" style="background: white; color: #c41e3a; margin-top: 15px;">
+                    🏠 Créer un nouveau puzzle
+                  </button>
+                `;
+                  document.querySelector(".container").appendChild(errorDiv);
+                })
+                .finally(() => {
+                  // Continuer le traitement après le chargement (même si échec)
+                  if (imgData && msg) {
+                    processLoadedPuzzleData(
+                      imgData,
+                      msg,
+                      size,
+                      type,
+                      timestamp,
+                      passwordHash
+                    );
+                  }
+                });
+
+              // Si chargé depuis localStorage, traiter directement
+              if (loaded) {
+                processLoadedPuzzleData(
+                  imgData,
+                  msg,
+                  size,
+                  type,
+                  timestamp,
+                  passwordHash
+                );
+                return; // Sortir car on a déjà traité
+              } else {
+                // Attendre le chargement asynchrone (la fonction processLoadedPuzzleData sera appelée dans .finally())
+                return;
+              }
+            }
+          }
+
+          // Fonction pour traiter les données chargées (utilisée pour le nouveau format avec ID)
+          function processLoadedPuzzleData(
+            imgData,
+            msg,
+            size,
+            type,
+            timestamp,
+            passwordHash
+          ) {
+            // Vérifier l'expiration
+            if (timestamp) {
+              const linkTimestamp = parseInt(timestamp);
+              const now = Date.now();
+              const expirationTime = 24 * 60 * 60 * 1000; // 24 heures
+
+              if (now - linkTimestamp > expirationTime) {
+                showExpiredMessage();
+                return;
+              }
+            }
+
+            // Stocker temporairement les données
+            try {
+              pendingImageData = imgData;
+              pendingMessage = msg;
+              pendingGridSize = size ? parseInt(size) : 4;
+              pendingPuzzleType = type || "sliding";
+
+              // Vérifier que l'image est valide
+              if (
+                !pendingImageData ||
+                !pendingImageData.startsWith("data:image")
+              ) {
+                console.error("Format d'image invalide ou manquant");
+                return;
+              }
+
+              // Vérifier si un mot de passe est requis
+              if (passwordHash) {
+                storedPasswordHash = passwordHash;
+                document.getElementById("passwordModal").style.display = "flex";
+                document.getElementById("passwordCheckInput").focus();
+                return;
+              }
+
+              // Pas de mot de passe, charger directement
+              console.log("Chargement du puzzle partagé...");
+              imageData = pendingImageData;
+              customMessage = pendingMessage;
+              gridSize = pendingGridSize;
+              puzzleType = pendingPuzzleType;
+
+              // Cacher toutes les étapes de création
+              step1.style.display = "none";
+              step2.style.display = "none";
+              shareSection.style.display = "none";
+
+              // Afficher directement le puzzle
+              puzzleArea.style.display = "block";
+
+              // Changer le titre
+              document.querySelector("h1").textContent = "🎄 Puzzle Partagé 🎁";
+
+              // Démarrer le puzzle
+              setTimeout(() => {
+                if (imageData) {
+                  initPuzzle();
+                  startTimer();
+                }
+              }, 100);
+            } catch (error) {
+              console.error(
+                "Erreur lors du chargement du puzzle partagé:",
+                error
+              );
+            }
+          }
+
+          // Si on n'a pas encore chargé les données (ancien format ou format avec données dans l'URL)
+          if (
+            !imgData &&
+            hashData &&
+            hashData.length > 10 &&
+            !hashData.startsWith("id=")
+          ) {
+            // Fonction de parsing robuste basée sur l'ordre fixe des paramètres (ANCIEN FORMAT)
             // L'ordre attendu: i=...&m=...&s=...&y=...&t=...&p=...
             function parseHashData(hash) {
               const result = {};
@@ -1170,46 +1432,86 @@
           // Ajouter un timestamp pour l'expiration (24 heures)
           const timestamp = Date.now();
 
-          // Utiliser le hash (#) avec paramètres courts pour minimiser la longueur de l'URL
-          // i=image, m=message, s=size, y=type, t=timestamp, p=password
-          const imgParam = encodeURIComponent(imageData);
-          const msgParam = encodeURIComponent(customMessage);
-          let url = `${baseUrl}#i=${imgParam}&m=${msgParam}&s=${gridSize}&y=${puzzleType}&t=${timestamp}`;
-
-          // Ajouter le hash du mot de passe si fourni
-          if (passwordHash) {
-            url += `&p=${passwordHash}`;
+          // Générer un ID court unique (8 caractères aléatoires)
+          function generateShortId() {
+            const chars =
+              "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let id = "";
+            for (let i = 0; i < 8; i++) {
+              id += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return id;
           }
 
-          console.log(
-            "URL générée (longueur: " +
-              url.length +
-              " caractères, expire dans 24h" +
-              (passwordHash ? ", protégé par mot de passe" : "") +
-              ")"
-          );
-          console.log(
-            "URL hash part:",
-            url.substring(url.indexOf("#") + 1, url.indexOf("#") + 200)
-          );
-          console.log("Image data length:", imageData.length);
-          console.log("Image data start:", imageData.substring(0, 50));
+          const puzzleId = generateShortId();
 
-          document.getElementById("shareUrl").value = url;
+          // Préparer les données à stocker
+          const puzzleData = {
+            img: imageData,
+            msg: customMessage,
+            size: gridSize,
+            type: puzzleType,
+            t: timestamp,
+            p: passwordHash,
+            expires: timestamp + 24 * 60 * 60 * 1000, // 24 heures
+          };
 
-          // Vérifier que l'URL peut être relue correctement
-          const testHash = url.substring(url.indexOf("#") + 1);
-          const testParams = new URLSearchParams(testHash);
-          const testImg = testParams.get("i");
-          if (testImg && testImg.length > 0) {
+          // Stocker dans localStorage (backup local) ET essayer de stocker en ligne
+          const storageKey = `puzzle_${puzzleId}`;
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(puzzleData));
             console.log(
-              "✅ Vérification: l'image est bien dans l'URL (longueur:",
-              testImg.length,
-              ")"
+              "✅ Données stockées dans localStorage avec l'ID:",
+              puzzleId
             );
-          } else {
-            console.error("❌ ERREUR: l'image n'est pas dans l'URL!");
+          } catch (e) {
+            console.warn("Impossible de stocker dans localStorage:", e);
           }
+
+          // Essayer de stocker en ligne avec jsonstorage.net (gratuit, pas besoin de clé API)
+          loading.style.display = "block";
+          loading.textContent = "Création du lien de partage...";
+
+          fetch(`https://jsonstorage.net/api/items/${puzzleId}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(puzzleData),
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              console.log("✅ Données stockées en ligne avec succès");
+              loading.style.display = "none";
+            })
+            .catch((error) => {
+              console.warn(
+                "⚠️ Impossible de stocker en ligne (mode hors ligne ou erreur réseau):",
+                error
+              );
+              console.log("Utilisation du stockage local uniquement");
+              loading.style.display = "none";
+              // On continue quand même avec localStorage
+            });
+
+          // Créer une URL courte avec juste l'ID
+          let url = `${baseUrl}#id=${puzzleId}`;
+
+          console.log(
+            "✅ URL courte générée (longueur: " +
+              url.length +
+              " caractères, ID: " +
+              puzzleId +
+              ")"
+          );
+
+          // Stocker l'URL complète dans une variable globale
+          shareUrlComplete = url;
+
+          // Afficher l'URL dans le champ
+          const urlInput = document.getElementById("shareUrl");
+          urlInput.value = url;
+
           shareSection.style.display = "block";
           step1.style.display = "none";
           step2.style.display = "none";
@@ -1835,23 +2137,62 @@
       });
 
       function copyUrl() {
-        const urlInput = document.getElementById("shareUrl");
-        urlInput.select();
-        urlInput.setSelectionRange(0, 99999);
+        // Utiliser l'URL complète stockée dans la variable plutôt que le champ input
+        // (le champ input peut être tronqué par le navigateur)
+        const urlToCopy =
+          shareUrlComplete || document.getElementById("shareUrl").value;
+
+        console.log("Copie de l'URL, longueur:", urlToCopy.length);
 
         if (navigator.clipboard) {
-          navigator.clipboard.writeText(urlInput.value).then(() => {
-            alert("✅ Lien copié dans le presse-papier !");
-          });
+          navigator.clipboard
+            .writeText(urlToCopy)
+            .then(() => {
+              alert(
+                "✅ Lien copié dans le presse-papier ! (" +
+                  urlToCopy.length +
+                  " caractères)"
+              );
+            })
+            .catch((err) => {
+              console.error("Erreur lors de la copie:", err);
+              // Fallback: essayer avec le champ input
+              const urlInput = document.getElementById("shareUrl");
+              urlInput.select();
+              urlInput.setSelectionRange(0, 99999);
+              document.execCommand("copy");
+              alert("✅ Lien copié dans le presse-papier !");
+            });
         } else {
-          // Fallback
-          document.execCommand("copy");
-          alert("✅ Lien copié dans le presse-papier !");
+          // Fallback: créer un élément textarea temporaire pour copier
+          const textarea = document.createElement("textarea");
+          textarea.value = urlToCopy;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          textarea.setSelectionRange(0, 99999);
+          try {
+            document.execCommand("copy");
+            alert(
+              "✅ Lien copié dans le presse-papier ! (" +
+                urlToCopy.length +
+                " caractères)"
+            );
+          } catch (err) {
+            console.error("Erreur lors de la copie:", err);
+            alert(
+              "❌ Erreur lors de la copie. Veuillez sélectionner et copier manuellement."
+            );
+          }
+          document.body.removeChild(textarea);
         }
       }
 
       function shareNative() {
-        const url = document.getElementById("shareUrl").value;
+        // Utiliser l'URL complète stockée dans la variable
+        const url =
+          shareUrlComplete || document.getElementById("shareUrl").value;
         if (navigator.share) {
           navigator
             .share({
@@ -1875,6 +2216,7 @@
         moves = 0;
         timer = 0;
         puzzleType = "sliding";
+        shareUrlComplete = null;
         stopTimer();
 
         // Réinitialiser l'interface
