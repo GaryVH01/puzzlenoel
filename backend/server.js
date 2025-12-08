@@ -54,18 +54,23 @@ async function connectMongoDB() {
       w: "majority",
     };
 
-    // Options SSL pour MongoDB Atlas
+    // Options TLS/SSL pour MongoDB Atlas (utiliser les options modernes)
     if (mongoUri.includes("mongodb+srv://")) {
-      options.ssl = true;
-      options.sslValidate = true;
-      // Désactiver la validation stricte si problème SSL (à utiliser avec précaution)
-      // options.tlsAllowInvalidCertificates = false; // Ne pas activer en production
+      // Utiliser les options TLS modernes au lieu de SSL dépréciées
+      options.tls = true;
+      options.tlsAllowInvalidCertificates = false; // Validation stricte des certificats
+      // Note: sslValidate est déprécié, utiliser tlsAllowInvalidCertificates à la place
     }
 
     await mongoose.connect(mongoUri, options);
 
-    mongoConnected = true;
-    console.log("✅ Connecté à MongoDB");
+    // Vérifier que la connexion est vraiment établie
+    if (mongoose.connection.readyState === 1) {
+      mongoConnected = true;
+      console.log("✅ Connecté à MongoDB");
+    } else {
+      throw new Error("Connexion établie mais état incorrect");
+    }
   } catch (error) {
     console.error("❌ Erreur de connexion MongoDB:", error.message);
     console.error(
@@ -94,23 +99,32 @@ connectMongoDB();
 mongoose.connection.on("disconnected", () => {
   mongoConnected = false;
   console.warn("⚠️ MongoDB déconnecté");
-  // Tenter de reconnecter
+  // Tenter de reconnecter après un délai
   setTimeout(() => {
-    if (!mongoConnected) {
+    if (!mongoConnected && mongoose.connection.readyState !== 1) {
       console.log("🔄 Tentative de reconnexion MongoDB...");
       connectMongoDB();
     }
-  }, 5000);
+  }, 10000); // Augmenter le délai pour éviter les reconnexions trop fréquentes
 });
 
 mongoose.connection.on("reconnected", () => {
-  mongoConnected = true;
-  console.log("✅ MongoDB reconnecté");
+  if (mongoose.connection.readyState === 1) {
+    mongoConnected = true;
+    console.log("✅ MongoDB reconnecté");
+  }
 });
 
 mongoose.connection.on("error", (error) => {
   console.error("❌ Erreur MongoDB:", error.message);
   mongoConnected = false;
+});
+
+mongoose.connection.on("connected", () => {
+  if (mongoose.connection.readyState === 1) {
+    mongoConnected = true;
+    console.log("✅ Événement 'connected' MongoDB");
+  }
 });
 
 // Schéma MongoDB simple
@@ -139,14 +153,25 @@ const Puzzle = mongoose.model("Puzzle", puzzleSchema);
 // Route pour créer un puzzle
 app.post("/api/puzzle", async (req, res) => {
   try {
-    // Vérifier la connexion MongoDB
-    if (!mongoConnected || mongoose.connection.readyState !== 1) {
-      console.error("❌ MongoDB non connecté");
+    // Vérifier la connexion MongoDB (vérifier l'état réel)
+    const isConnected = mongoose.connection.readyState === 1;
+    if (!isConnected) {
+      // Mettre à jour mongoConnected si nécessaire
+      mongoConnected = false;
+      console.error(
+        "❌ MongoDB non connecté (readyState:",
+        mongoose.connection.readyState,
+        ")"
+      );
       return res.status(503).json({
         error: "Service temporairement indisponible",
         message:
           "La base de données n'est pas accessible. Vérifiez la variable MONGODB_URI.",
       });
+    }
+    // Mettre à jour mongoConnected si connecté
+    if (!mongoConnected) {
+      mongoConnected = true;
     }
 
     const { puzzleId, img, msg, size, type, t, p, expires } = req.body;
@@ -221,14 +246,25 @@ app.post("/api/puzzle", async (req, res) => {
 // Route pour récupérer un puzzle
 app.get("/api/puzzle/:puzzleId", async (req, res) => {
   try {
-    // Vérifier la connexion MongoDB
-    if (!mongoConnected || mongoose.connection.readyState !== 1) {
-      console.error("❌ MongoDB non connecté");
+    // Vérifier la connexion MongoDB (vérifier l'état réel)
+    const isConnected = mongoose.connection.readyState === 1;
+    if (!isConnected) {
+      // Mettre à jour mongoConnected si nécessaire
+      mongoConnected = false;
+      console.error(
+        "❌ MongoDB non connecté (readyState:",
+        mongoose.connection.readyState,
+        ")"
+      );
       return res.status(503).json({
         error: "Service temporairement indisponible",
         message:
           "La base de données n'est pas accessible. Vérifiez la variable MONGODB_URI.",
       });
+    }
+    // Mettre à jour mongoConnected si connecté
+    if (!mongoConnected) {
+      mongoConnected = true;
     }
 
     const { puzzleId } = req.params;
