@@ -715,8 +715,8 @@
         }, 100);
       }
 
-      // Compresser l'image pour réduire la taille de l'URL
-      function compressImage(file, maxWidth = 600, quality = 0.7) {
+      // Compresser l'image pour réduire la taille de l'URL (compression maximale)
+      function compressImage(file, maxWidth = 500, quality = 0.5) {
         return new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => {
@@ -737,10 +737,12 @@
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
 
-              // Réduire encore la qualité pour les très grandes images
+              // Compression agressive pour réduire la taille de l'URL
               let finalQuality = quality;
-              if (width * height > 300000) {
-                finalQuality = 0.6;
+              if (width * height > 200000) {
+                finalQuality = 0.4;
+              } else if (width * height > 100000) {
+                finalQuality = 0.45;
               }
 
               const compressed = canvas.toDataURL("image/jpeg", finalQuality);
@@ -770,12 +772,13 @@
           if (hashData && hashData.length > 10) {
             try {
               const hashParams = new URLSearchParams(hashData);
-              imgData = hashParams.get("img");
-              msg = hashParams.get("msg");
-              size = hashParams.get("size");
+              // Support des paramètres courts (nouveau format) et longs (ancien format pour compatibilité)
+              imgData = hashParams.get("i") || hashParams.get("img");
+              msg = hashParams.get("m") || hashParams.get("msg");
+              size = hashParams.get("s") || hashParams.get("size");
               timestamp = hashParams.get("t");
               passwordHash = hashParams.get("p");
-              type = hashParams.get("type");
+              type = hashParams.get("y") || hashParams.get("type");
             } catch (e) {
               console.log("Erreur lecture hash, essai query params");
             }
@@ -784,12 +787,13 @@
           // Sinon, essayer les query params
           if ((!imgData || !msg) && urlParams && urlParams.length > 10) {
             const params = new URLSearchParams(urlParams);
-            imgData = imgData || params.get("img");
-            msg = msg || params.get("msg");
-            size = size || params.get("size");
+            // Support des paramètres courts (nouveau format) et longs (ancien format pour compatibilité)
+            imgData = imgData || params.get("i") || params.get("img");
+            msg = msg || params.get("m") || params.get("msg");
+            size = size || params.get("s") || params.get("size");
             timestamp = timestamp || params.get("t");
             passwordHash = passwordHash || params.get("p");
-            type = type || params.get("type");
+            type = type || params.get("y") || params.get("type");
           }
 
           // Vérifier l'expiration (24 heures = 86400000 ms)
@@ -946,10 +950,11 @@
           // Ajouter un timestamp pour l'expiration (24 heures)
           const timestamp = Date.now();
 
-          // Utiliser le hash (#) au lieu de query params pour les très longues URLs
+          // Utiliser le hash (#) avec paramètres courts pour minimiser la longueur de l'URL
+          // i=image, m=message, s=size, y=type, t=timestamp, p=password
           const imgParam = encodeURIComponent(imageData);
           const msgParam = encodeURIComponent(customMessage);
-          let url = `${baseUrl}#img=${imgParam}&msg=${msgParam}&size=${gridSize}&type=${puzzleType}&t=${timestamp}`;
+          let url = `${baseUrl}#i=${imgParam}&m=${msgParam}&s=${gridSize}&y=${puzzleType}&t=${timestamp}`;
 
           // Ajouter le hash du mot de passe si fourni
           if (passwordHash) {
