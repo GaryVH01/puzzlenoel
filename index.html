@@ -761,6 +761,15 @@
           let hashData = window.location.hash.substring(1);
           let urlParams = window.location.search;
 
+          console.log(
+            "loadFromURL - hashData length:",
+            hashData ? hashData.length : 0
+          );
+          console.log(
+            "loadFromURL - urlParams length:",
+            urlParams ? urlParams.length : 0
+          );
+
           let imgData = null;
           let msg = null;
           let size = null;
@@ -779,8 +788,94 @@
               timestamp = hashParams.get("t");
               passwordHash = hashParams.get("p");
               type = hashParams.get("y") || hashParams.get("type");
+
+              // Si URLSearchParams n'a rien retourné mais qu'on a un hash, essayer le parsing manuel
+              if (!imgData && hashData.includes("i=")) {
+                console.warn(
+                  "URLSearchParams n'a pas retourné l'image, utilisation du parsing manuel"
+                );
+                // Extraire l'image: depuis i= jusqu'à &m=
+                const iIndex = hashData.indexOf("i=");
+                const mIndex = hashData.indexOf("&m=");
+                if (iIndex !== -1 && mIndex !== -1) {
+                  imgData = hashData.substring(iIndex + 2, mIndex);
+                  console.log(
+                    "Image extraite via parsing d'ordre, longueur:",
+                    imgData.length
+                  );
+                }
+              }
+
+              if (!msg && hashData.includes("m=")) {
+                // Extraire le message: depuis &m= jusqu'à &s=
+                const mIndex = hashData.indexOf("&m=");
+                const sIndex = hashData.indexOf("&s=");
+                if (mIndex !== -1 && sIndex !== -1) {
+                  msg = hashData.substring(mIndex + 3, sIndex);
+                  console.log(
+                    "Message extrait via parsing d'ordre, longueur:",
+                    msg.length
+                  );
+                }
+              }
+
+              console.log("loadFromURL - Paramètres extraits du hash:", {
+                hasImg: !!imgData,
+                imgLength: imgData ? imgData.length : 0,
+                hasMsg: !!msg,
+                msgLength: msg ? msg.length : 0,
+                size: size,
+                type: type,
+              });
             } catch (e) {
-              console.log("Erreur lecture hash, essai query params");
+              console.error("Erreur lecture hash avec URLSearchParams:", e);
+              // En cas d'erreur, essayer de parser en utilisant l'ordre des paramètres
+              // L'ordre attendu: i=...&m=...&s=...&y=...&t=...&p=...
+              try {
+                // Extraire l'image: depuis i= jusqu'à &m=
+                const iIndex = hashData.indexOf("i=");
+                const mIndex = hashData.indexOf("&m=");
+                if (iIndex !== -1 && mIndex !== -1) {
+                  imgData = hashData.substring(iIndex + 2, mIndex);
+                  console.log(
+                    "Image extraite via parsing d'ordre (fallback), longueur:",
+                    imgData.length
+                  );
+                }
+
+                // Extraire le message: depuis &m= jusqu'à &s=
+                const sIndex = hashData.indexOf("&s=");
+                if (mIndex !== -1 && sIndex !== -1) {
+                  msg = hashData.substring(mIndex + 3, sIndex);
+                  console.log(
+                    "Message extrait via parsing d'ordre (fallback), longueur:",
+                    msg.length
+                  );
+                }
+
+                // Extraire les autres paramètres avec regex (plus sûr pour les valeurs courtes)
+                const sizeMatch = hashData.match(/[&]s=([^&]*)/);
+                if (sizeMatch && sizeMatch[1]) {
+                  size = sizeMatch[1];
+                }
+
+                const typeMatch = hashData.match(/[&]y=([^&]*)/);
+                if (typeMatch && typeMatch[1]) {
+                  type = typeMatch[1];
+                }
+
+                const tMatch = hashData.match(/[&]t=([^&]*)/);
+                if (tMatch && tMatch[1]) {
+                  timestamp = tMatch[1];
+                }
+
+                const pMatch = hashData.match(/[&]p=([^&]*)/);
+                if (pMatch && pMatch[1]) {
+                  passwordHash = pMatch[1];
+                }
+              } catch (parseError) {
+                console.error("Erreur parsing manuel:", parseError);
+              }
             }
           }
 
@@ -794,6 +889,11 @@
             timestamp = timestamp || params.get("t");
             passwordHash = passwordHash || params.get("p");
             type = type || params.get("y") || params.get("type");
+
+            console.log("loadFromURL - Paramètres extraits des query params:", {
+              hasImg: !!imgData,
+              hasMsg: !!msg,
+            });
           }
 
           // Vérifier l'expiration (24 heures = 86400000 ms)
@@ -804,6 +904,7 @@
 
             if (now - linkTimestamp > expirationTime) {
               // Le lien a expiré
+              console.log("Lien expiré");
               showExpiredMessage();
               return;
             }
@@ -814,17 +915,39 @@
             // C'est un puzzle partagé
             try {
               // Stocker temporairement les données
-              pendingImageData = decodeURIComponent(imgData);
-              pendingMessage = decodeURIComponent(msg);
-              pendingGridSize = size ? parseInt(size) : 4;
-              pendingPuzzleType = type || "sliding"; // Par défaut, puzzle glissant
+              try {
+                pendingImageData = decodeURIComponent(imgData);
+                pendingMessage = decodeURIComponent(msg);
+                pendingGridSize = size ? parseInt(size) : 4;
+                pendingPuzzleType = type || "sliding"; // Par défaut, puzzle glissant
 
-              // Vérifier que l'image est valide
-              if (
-                !pendingImageData ||
-                !pendingImageData.startsWith("data:image")
-              ) {
-                console.error("Format d'image invalide ou manquant");
+                console.log("loadFromURL - Données décodées:", {
+                  imageStart: pendingImageData
+                    ? pendingImageData.substring(0, 50)
+                    : null,
+                  message: pendingMessage,
+                  gridSize: pendingGridSize,
+                  puzzleType: pendingPuzzleType,
+                });
+
+                // Vérifier que l'image est valide
+                if (
+                  !pendingImageData ||
+                  !pendingImageData.startsWith("data:image")
+                ) {
+                  console.error(
+                    "Format d'image invalide ou manquant. Image start:",
+                    pendingImageData
+                      ? pendingImageData.substring(0, 100)
+                      : "null"
+                  );
+                  return;
+                }
+              } catch (decodeError) {
+                console.error(
+                  "Erreur lors du décodage des paramètres:",
+                  decodeError
+                );
                 return;
               }
 
@@ -868,6 +991,45 @@
                 error
               );
               // En cas d'erreur, afficher le formulaire normal
+            }
+          } else {
+            console.log(
+              "loadFromURL - Pas de données de puzzle trouvées dans l'URL"
+            );
+            console.log(
+              "hashData:",
+              hashData ? hashData.substring(0, 200) : "vide"
+            );
+            console.log(
+              "urlParams:",
+              urlParams ? urlParams.substring(0, 200) : "vide"
+            );
+
+            // Si on a un hash mais pas de données valides, c'est peut-être une URL tronquée
+            if (hashData && hashData.length > 10 && (!imgData || !msg)) {
+              console.warn(
+                "⚠️ URL détectée mais données incomplètes - l'URL a peut-être été tronquée"
+              );
+              // Afficher un message d'aide à l'utilisateur
+              const container = document.querySelector(".container");
+              if (container && !document.getElementById("urlErrorMsg")) {
+                const errorMsg = document.createElement("div");
+                errorMsg.id = "urlErrorMsg";
+                errorMsg.className = "step";
+                errorMsg.style.background =
+                  "linear-gradient(135deg, #ff9800 0%, #f57c00 100%)";
+                errorMsg.style.color = "white";
+                errorMsg.style.borderLeft = "5px solid #e65100";
+                errorMsg.innerHTML = `
+                  <h3>⚠️ Lien incomplet</h3>
+                  <p>Le lien partagé semble incomplet ou tronqué. L'image n'a pas pu être chargée.</p>
+                  <p style="font-size: 0.9em; margin-top: 10px;">Veuillez demander un nouveau lien à la personne qui a créé le puzzle.</p>
+                  <button class="btn" onclick="returnHome()" style="background: white; color: #e65100; margin-top: 15px;">
+                    🏠 Créer un nouveau puzzle
+                  </button>
+                `;
+                container.insertBefore(errorMsg, container.firstChild);
+              }
             }
           }
         } catch (error) {
@@ -968,8 +1130,28 @@
               (passwordHash ? ", protégé par mot de passe" : "") +
               ")"
           );
+          console.log(
+            "URL hash part:",
+            url.substring(url.indexOf("#") + 1, url.indexOf("#") + 200)
+          );
+          console.log("Image data length:", imageData.length);
+          console.log("Image data start:", imageData.substring(0, 50));
 
           document.getElementById("shareUrl").value = url;
+
+          // Vérifier que l'URL peut être relue correctement
+          const testHash = url.substring(url.indexOf("#") + 1);
+          const testParams = new URLSearchParams(testHash);
+          const testImg = testParams.get("i");
+          if (testImg && testImg.length > 0) {
+            console.log(
+              "✅ Vérification: l'image est bien dans l'URL (longueur:",
+              testImg.length,
+              ")"
+            );
+          } else {
+            console.error("❌ ERREUR: l'image n'est pas dans l'URL!");
+          }
           shareSection.style.display = "block";
           step1.style.display = "none";
           step2.style.display = "none";
