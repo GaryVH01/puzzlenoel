@@ -52,8 +52,6 @@ async function connectMongoDB() {
       // Retry logic
       retryWrites: true,
       w: "majority",
-      // Buffer commands si pas connecté
-      bufferMaxEntries: 0, // Désactiver le buffering pour éviter les timeouts
     };
 
     // Options SSL pour MongoDB Atlas
