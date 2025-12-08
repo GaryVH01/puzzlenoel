@@ -779,9 +779,80 @@
 
           // Si on a un hash, l'utiliser (priorité)
           if (hashData && hashData.length > 10) {
+            // Fonction de parsing robuste basée sur l'ordre fixe des paramètres
+            // L'ordre attendu: i=...&m=...&s=...&y=...&t=...&p=...
+            function parseHashData(hash) {
+              const result = {};
+
+              // Trouver les positions de chaque paramètre dans l'ordre
+              // On cherche &m= (pas juste m=) pour éviter les faux positifs dans l'image encodée
+              const iIndex = hash.indexOf("i=");
+              const mIndex = hash.indexOf("&m=");
+              const sIndex = hash.indexOf("&s=");
+              const yIndex = hash.indexOf("&y=");
+              const tIndex = hash.indexOf("&t=");
+              const pIndex = hash.indexOf("&p=");
+
+              // Extraire l'image (i=... jusqu'à &m=)
+              // L'image commence toujours par "i=" et se termine par "&m="
+              if (iIndex === 0 && mIndex !== -1) {
+                result.img = hash.substring(2, mIndex);
+                console.log(
+                  "Image extraite: début à",
+                  mIndex,
+                  "longueur:",
+                  result.img.length
+                );
+              } else if (iIndex === 0 && mIndex === -1) {
+                // Si &m= n'est pas trouvé, l'URL est probablement tronquée
+                console.warn("&m= non trouvé, URL peut être tronquée");
+              }
+
+              // Extraire le message (&m=... jusqu'à &s=)
+              if (mIndex !== -1 && sIndex !== -1) {
+                result.msg = hash.substring(mIndex + 3, sIndex);
+                console.log(
+                  "Message extrait: de",
+                  mIndex + 3,
+                  "à",
+                  sIndex,
+                  "longueur:",
+                  result.msg.length
+                );
+              }
+
+              // Extraire size (&s=... jusqu'à &y= ou &t=)
+              if (sIndex !== -1) {
+                const endIndex =
+                  yIndex !== -1 ? yIndex : tIndex !== -1 ? tIndex : hash.length;
+                result.size = hash.substring(sIndex + 3, endIndex);
+              }
+
+              // Extraire type (&y=... jusqu'à &t=)
+              if (yIndex !== -1 && tIndex !== -1) {
+                result.type = hash.substring(yIndex + 3, tIndex);
+              } else if (yIndex !== -1) {
+                // Si &t= n'est pas trouvé mais &y= oui, prendre jusqu'à la fin
+                result.type = hash.substring(yIndex + 3);
+              }
+
+              // Extraire timestamp (&t=... jusqu'à &p= ou fin)
+              if (tIndex !== -1) {
+                const endIndex = pIndex !== -1 ? pIndex : hash.length;
+                result.timestamp = hash.substring(tIndex + 3, endIndex);
+              }
+
+              // Extraire password (&p=... jusqu'à la fin)
+              if (pIndex !== -1) {
+                result.password = hash.substring(pIndex + 3);
+              }
+
+              return result;
+            }
+
             try {
+              // Essayer d'abord avec URLSearchParams
               const hashParams = new URLSearchParams(hashData);
-              // Support des paramètres courts (nouveau format) et longs (ancien format pour compatibilité)
               imgData = hashParams.get("i") || hashParams.get("img");
               msg = hashParams.get("m") || hashParams.get("msg");
               size = hashParams.get("s") || hashParams.get("size");
@@ -789,94 +860,81 @@
               passwordHash = hashParams.get("p");
               type = hashParams.get("y") || hashParams.get("type");
 
-              // Si URLSearchParams n'a rien retourné mais qu'on a un hash, essayer le parsing manuel
-              if (!imgData && hashData.includes("i=")) {
-                console.warn(
-                  "URLSearchParams n'a pas retourné l'image, utilisation du parsing manuel"
-                );
-                // Extraire l'image: depuis i= jusqu'à &m=
-                const iIndex = hashData.indexOf("i=");
-                const mIndex = hashData.indexOf("&m=");
-                if (iIndex !== -1 && mIndex !== -1) {
-                  imgData = hashData.substring(iIndex + 2, mIndex);
-                  console.log(
-                    "Image extraite via parsing d'ordre, longueur:",
-                    imgData.length
-                  );
-                }
-              }
-
-              if (!msg && hashData.includes("m=")) {
-                // Extraire le message: depuis &m= jusqu'à &s=
-                const mIndex = hashData.indexOf("&m=");
-                const sIndex = hashData.indexOf("&s=");
-                if (mIndex !== -1 && sIndex !== -1) {
-                  msg = hashData.substring(mIndex + 3, sIndex);
-                  console.log(
-                    "Message extrait via parsing d'ordre, longueur:",
-                    msg.length
-                  );
-                }
-              }
-
-              console.log("loadFromURL - Paramètres extraits du hash:", {
+              console.log("URLSearchParams résultat:", {
                 hasImg: !!imgData,
                 imgLength: imgData ? imgData.length : 0,
                 hasMsg: !!msg,
-                msgLength: msg ? msg.length : 0,
-                size: size,
-                type: type,
               });
             } catch (e) {
-              console.error("Erreur lecture hash avec URLSearchParams:", e);
-              // En cas d'erreur, essayer de parser en utilisant l'ordre des paramètres
-              // L'ordre attendu: i=...&m=...&s=...&y=...&t=...&p=...
-              try {
-                // Extraire l'image: depuis i= jusqu'à &m=
-                const iIndex = hashData.indexOf("i=");
-                const mIndex = hashData.indexOf("&m=");
-                if (iIndex !== -1 && mIndex !== -1) {
-                  imgData = hashData.substring(iIndex + 2, mIndex);
-                  console.log(
-                    "Image extraite via parsing d'ordre (fallback), longueur:",
-                    imgData.length
-                  );
-                }
+              console.warn(
+                "URLSearchParams a échoué, utilisation du parsing manuel:",
+                e
+              );
+            }
 
-                // Extraire le message: depuis &m= jusqu'à &s=
-                const sIndex = hashData.indexOf("&s=");
-                if (mIndex !== -1 && sIndex !== -1) {
-                  msg = hashData.substring(mIndex + 3, sIndex);
-                  console.log(
-                    "Message extrait via parsing d'ordre (fallback), longueur:",
-                    msg.length
-                  );
-                }
+            // Si URLSearchParams n'a pas fonctionné ou n'a pas retourné les données, utiliser le parsing manuel
+            if (!imgData || !msg) {
+              console.log(
+                "Utilisation du parsing manuel basé sur l'ordre des paramètres"
+              );
+              console.log("hashData début:", hashData.substring(0, 100));
+              console.log("hashData contient '&m=':", hashData.includes("&m="));
+              console.log("hashData contient '&s=':", hashData.includes("&s="));
 
-                // Extraire les autres paramètres avec regex (plus sûr pour les valeurs courtes)
-                const sizeMatch = hashData.match(/[&]s=([^&]*)/);
-                if (sizeMatch && sizeMatch[1]) {
-                  size = sizeMatch[1];
-                }
+              const parsed = parseHashData(hashData);
+              console.log("Résultat du parsing manuel:", {
+                hasImg: !!parsed.img,
+                imgLength: parsed.img ? parsed.img.length : 0,
+                hasMsg: !!parsed.msg,
+                msgLength: parsed.msg ? parsed.msg.length : 0,
+              });
 
-                const typeMatch = hashData.match(/[&]y=([^&]*)/);
-                if (typeMatch && typeMatch[1]) {
-                  type = typeMatch[1];
-                }
+              if (parsed.img && !imgData) {
+                imgData = parsed.img;
+                console.log(
+                  "✅ Image extraite via parsing manuel, longueur:",
+                  imgData.length
+                );
+                console.log("Image début:", imgData.substring(0, 50));
+              } else if (!imgData) {
+                console.error("❌ Impossible d'extraire l'image du hash");
+              }
 
-                const tMatch = hashData.match(/[&]t=([^&]*)/);
-                if (tMatch && tMatch[1]) {
-                  timestamp = tMatch[1];
-                }
+              if (parsed.msg && !msg) {
+                msg = parsed.msg;
+                console.log(
+                  "✅ Message extrait via parsing manuel, longueur:",
+                  msg.length
+                );
+              } else if (!msg) {
+                console.error("❌ Impossible d'extraire le message du hash");
+              }
 
-                const pMatch = hashData.match(/[&]p=([^&]*)/);
-                if (pMatch && pMatch[1]) {
-                  passwordHash = pMatch[1];
-                }
-              } catch (parseError) {
-                console.error("Erreur parsing manuel:", parseError);
+              if (parsed.size && !size) {
+                size = parsed.size;
+              }
+
+              if (parsed.type && !type) {
+                type = parsed.type;
+              }
+
+              if (parsed.timestamp && !timestamp) {
+                timestamp = parsed.timestamp;
+              }
+
+              if (parsed.password && !passwordHash) {
+                passwordHash = parsed.password;
               }
             }
+
+            console.log("loadFromURL - Paramètres finaux extraits:", {
+              hasImg: !!imgData,
+              imgLength: imgData ? imgData.length : 0,
+              hasMsg: !!msg,
+              msgLength: msg ? msg.length : 0,
+              size: size,
+              type: type,
+            });
           }
 
           // Sinon, essayer les query params
